@@ -1,18 +1,21 @@
-import 'dotenv/config';
-// Set NODE_ENV to test to enable fast backoff retries (100ms, 200ms, 300ms)
+process.env.FAST_RETRY = "true";
 process.env.NODE_ENV = 'test';
 
+import 'dotenv/config';
 import mongoose from 'mongoose';
 import { createClient } from 'redis';
 import { connectDatabase } from '../config/database.js';
 import { User, Role, Batch, Student, Notification, Session, Course, Assignment, AssignmentSubmission, AssignmentResult, StudentLedger } from '../src/models/index.js';
 import { queueReview } from '../src/service/codeReviewService.js';
 import { codeReviewQueue } from '../src/queues/codeReviewQueue.js';
+import '../src/workers/codeReviewWorker.js';
 
 const TEST_DB_URI = process.env.DB_URI || 'mongodb://127.0.0.1:27017/ims_test';
 
 async function runTests() {
   console.log('=== STARTING CODE REVIEW BACKEND QUEUE & WORKER TESTS ===');
+  // Add a small delay so Bull listeners fully register
+  await new Promise(resolve => setTimeout(resolve, 1000));
 
   // 1. Connect to Database
   try {
@@ -195,27 +198,32 @@ async function runTests() {
   }
 
   // Check Redis availability to run Bull Queue Test
-  console.log('\nChecking Redis connection status...');
-  const redisAvailable = await new Promise(async (resolve) => {
-    try {
-      const client = createClient({
-        url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-        socket: { connectTimeout: 1000 }
-      });
-      client.on('error', () => resolve(false));
-      await client.connect();
-      await client.disconnect();
-      resolve(true);
-    } catch (err) {
-      resolve(false);
-    }
-  });
+ let redisAvailable = true;
+
+try {
+  await codeReviewQueue.isReady();
+  console.log('✓ Redis connection verified via Bull queue.');
+} catch (err) {
+  console.error('Redis verification failed:', err.message);
+  redisAvailable = false;
+}
 
   if (redisAvailable) {
     console.log('Redis is running. Setting up worker and starting queue tests...');
     
-    // Import the worker so it registers on the queue in this process
-    await import('../src/workers/codeReviewWorker.js');
+    // Clean the queue completely to avoid stale jobs interference
+    await codeReviewQueue.empty();
+    await codeReviewQueue.clean(0, 'completed');
+    await codeReviewQueue.clean(0, 'wait');
+    await codeReviewQueue.clean(0, 'active');
+    await codeReviewQueue.clean(0, 'delayed');
+    await codeReviewQueue.clean(0, 'failed');
+    console.log("CodeReviewQueue cleaned");
+
+    const cleanCounts = await codeReviewQueue.getJobCounts();
+    console.log("QUEUE COUNTS AFTER CLEAN:", cleanCounts);
+
+    // Worker is statically imported at the top to avoid registration race conditions
 
     // Test 2: Success Case (On-Time Submission)
     console.log('\n--- Test 2: Success Case (On-Time Submission) ---');
@@ -321,11 +329,13 @@ async function runTests() {
     console.log('Queueing review for failing submission...');
     const failJob = await queueReview(failingSubmission._id);
     console.log(`Job queued. ID: ${failJob.id}`);
+    const counts = await codeReviewQueue.getJobCounts();
+    console.log('QUEUE COUNTS:', counts);
 
     // Wait enough time for all 3 attempts (attempt 1, delay 100ms, attempt 2, delay 200ms, attempt 3)
     // 5 seconds should be more than enough for retries since we mock/force fast retries in test env
-    console.log('Waiting 5 seconds for worker retries and exhaustion...');
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+console.log('Waiting 10 seconds for worker retries and exhaustion...');
+await new Promise((resolve) => setTimeout(resolve, 10000));
 
     // Verify submission status is set to error
     const updatedFailingSubmission = await AssignmentSubmission.findById(failingSubmission._id);

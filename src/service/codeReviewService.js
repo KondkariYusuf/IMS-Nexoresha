@@ -37,7 +37,10 @@ export async function queueReview(submissionId) {
 
   // 3. Queue the job in Bull with 3 attempts and custom backoff delay
   const job = await codeReviewQueue.add(
-    { submissionId },
+    { 
+      submissionId,
+      apiUrl: process.env.CODE_REVIEW_API_URL || null
+    },
     {
       attempts: 3,
       backoff: {
@@ -59,17 +62,16 @@ export async function queueReview(submissionId) {
 /**
  * Call the external code review API (or use mock mode if API URL is not set).
  */
-export async function callCodeReviewApi(githubUrl) {
+export async function callCodeReviewApi(githubUrl, apiUrl) {
   if (!isValidGithubUrl(githubUrl)) {
     throw new Error('Validation Error: Invalid GitHub URL.');
   }
 
-  const apiUrl = process.env.CODE_REVIEW_API_URL;
   const apiKey = process.env.CODE_REVIEW_API_KEY;
 
   if (!apiUrl) {
-    // Mock review mode for testing when CODE_REVIEW_API_URL is missing
-    console.log(`[CodeReviewService] [Mock Mode] CODE_REVIEW_API_URL is missing. Simulating code review API call for ${githubUrl}...`);
+    // Mock review mode for testing when API URL is missing
+    console.log(`[CodeReviewService] [Mock Mode] apiUrl is missing. Simulating code review API call for ${githubUrl}...`);
     
     // Simulate slight network delay
     await new Promise((resolve) => setTimeout(resolve, 1000));

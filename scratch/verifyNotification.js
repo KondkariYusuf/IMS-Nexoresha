@@ -124,21 +124,15 @@ async function runTests() {
   }
 
   // Check Redis availability to run Bull Queue Test
-  console.log('\nChecking Redis connection status...');
-  const redisAvailable = await new Promise(async (resolve) => {
-    try {
-      const client = createClient({
-        url: process.env.REDIS_URL || 'redis://127.0.0.1:6379',
-        socket: { connectTimeout: 1000 }
-      });
-      client.on('error', () => resolve(false));
-      await client.connect();
-      await client.disconnect();
-      resolve(true);
-    } catch (err) {
-      resolve(false);
-    }
-  });
+let redisAvailable = true;
+
+try {
+  await reminderQueue.isReady();
+  console.log('✓ Redis connection verified via Bull queue.');
+} catch (err) {
+  console.error('Redis verification failed:', err.message);
+  redisAvailable = false;
+}
 
   if (redisAvailable) {
     console.log('\n--- Test 2: scheduleReminder() Success Case & Worker processing ---');

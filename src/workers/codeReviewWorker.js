@@ -9,9 +9,9 @@ console.log('[CodeReviewWorker] Worker script loaded and listening for queue job
 
 // Process the code-review queue
 codeReviewQueue.process(async (job) => {
-  const { submissionId } = job.data;
+  const { submissionId, apiUrl } = job.data;
 
-  console.log(`[CodeReviewWorker] Job ${job.id} started. Submission ID: ${submissionId}`);
+  console.log(`[CodeReviewWorker] Job ${job.id} started. Submission ID: ${submissionId}, API URL: ${apiUrl}`);
 
   try {
     // 1. Fetch submission from database
@@ -28,7 +28,7 @@ codeReviewQueue.process(async (job) => {
     }
 
     // 3. Call code review API (or mock review mode if API URL is not set)
-    const reviewResult = await callCodeReviewApi(githubUrl);
+    const reviewResult = await callCodeReviewApi(githubUrl, apiUrl);
 
     // 4. Update DB and Notify student
     await handleReviewResult(submissionId, reviewResult);
@@ -42,21 +42,23 @@ codeReviewQueue.process(async (job) => {
 });
 
 // Listen for job failure events to handle final failures when retries are exhausted
-codeReviewQueue.on('failed', async (job, err) => {
-  const { submissionId } = job.data;
-  console.error(`[CodeReviewWorker] Job ${job.id} failed attempt. Attempt: ${job.attemptsMade}/${job.opts.attempts}. Error: ${err.message}`);
+if (codeReviewQueue.listeners('failed').length === 0) {
+  codeReviewQueue.on('failed', async (job, err) => {
+    const { submissionId } = job.data;
+    console.error(`[CodeReviewWorker] Job ${job.id} failed attempt. Attempt: ${job.attemptsMade}/${job.opts.attempts}. Error: ${err.message}`);
 
-  // Check if all retries are exhausted
-  if (job.attemptsMade >= job.opts.attempts) {
-    console.error(`[CodeReviewWorker] Job ${job.id} exhausted all ${job.opts.attempts} attempts. Triggering error handling...`);
-    try {
-      await handleReviewError(submissionId, err);
-      console.log(`[CodeReviewWorker] Error handler completed for job ${job.id}`);
-    } catch (handlerError) {
-      console.error(`[CodeReviewWorker] Error running handleReviewError: ${handlerError.message}`);
+    // Check if all retries are exhausted
+    if (job.attemptsMade >= job.opts.attempts) {
+      console.error(`[CodeReviewWorker] Job ${job.id} exhausted all ${job.opts.attempts} attempts. Triggering error handling...`);
+      try {
+        await handleReviewError(submissionId, err);
+        console.log(`[CodeReviewWorker] Error handler completed for job ${job.id}`);
+      } catch (handlerError) {
+        console.error(`[CodeReviewWorker] Error running handleReviewError: ${handlerError.message}`);
+      }
     }
-  }
-});
+  });
+}
 
 // Standalone execution support: allows running the worker directly in a separate process
 const isDirectRun = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];

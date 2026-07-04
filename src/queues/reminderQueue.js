@@ -1,26 +1,40 @@
-import Queue from 'bull';
+import Queue from "bull";
+import IORedis from "ioredis";
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
+function createRedisClient() {
+  return new IORedis(process.env.REDIS_URL, {
+    tls: {},
+    enableReadyCheck: false,
+    maxRetriesPerRequest: null
+  });
+}
 
-console.log(`[ReminderQueue] Initializing queue with Redis URL: ${REDIS_URL}`);
+export const reminderQueue = new Queue(
+  "notification-reminders",
+  {
+    createClient(type) {
+      switch (type) {
+        case "client":
+          return createRedisClient();
 
-// Initialize the reminders queue with a custom backoff strategy
-export const reminderQueue = new Queue('notification-reminders', REDIS_URL, {
-  settings: {
-    backoffStrategies: {
-      customBackoff(attemptsMade, err) {
-        // Attempts are 1-based (i.e. attempt 1 is the first retry)
-        // Delay sequence: 1 min, 5 min, 15 min
-        const delays = [60000, 300000, 900000];
-        const delay = delays[attemptsMade - 1] || 900000;
-        console.log(`[ReminderQueue] Custom backoff strategy invoked. Attempt: ${attemptsMade}, error: ${err?.message || 'unknown'}. Next retry in ${delay}ms`);
-        return delay;
+        case "subscriber":
+          return createRedisClient();
+
+        case "bclient":
+          return createRedisClient();
+
+        default:
+          return createRedisClient();
+      }
+    },
+
+    settings: {
+      backoffStrategies: {
+        customBackoff(attemptsMade) {
+          const delays = [60000, 300000, 900000];
+          return delays[attemptsMade - 1] || 900000;
+        }
       }
     }
   }
-});
-
-// Gracefully handle Redis connection errors without crashing the parent process
-reminderQueue.on('error', (err) => {
-  console.error('[ReminderQueue] Redis connection error event:', err.message);
-});
+);
