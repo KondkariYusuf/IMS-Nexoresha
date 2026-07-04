@@ -1,6 +1,6 @@
 import nodemailer from 'nodemailer';
-import { User, Role, Student, Notification } from '../models/index.js';
-import { reminderQueue } from '../utils/cron/sessionReminders.js';
+import { User, Role, Student, Notification, Session } from '../models/index.js';
+import { reminderQueue } from '../queues/reminderQueue.js';
 
 let transporter = null;
 
@@ -190,18 +190,46 @@ export async function notifyAdmins(type, message, meta = {}) {
  * Schedules a delayed Bull job to trigger a notification at a specific time.
  */
 export async function scheduleReminder(sessionId, fireAt, type) {
-  if (!sessionId || !fireAt || !type) {
-    throw new Error('Invalid input: sessionId, fireAt, and type are required.');
+  // 1. Validation Rules
+  if (!sessionId) {
+    throw new Error('Validation Error: sessionId is required.');
+  }
+
+  const validTypes = ['lecture_reminder_24h', 'lecture_reminder_1h', 'assignment_deadline_24h'];
+  if (!type || !validTypes.includes(type)) {
+    throw new Error(`Validation Error: Invalid reminder type "${type}". Must be one of ${validTypes.join(', ')}.`);
+  }
+
+  if (!fireAt) {
+    throw new Error('Validation Error: fireAt timestamp is required.');
+  }
+
+  const fireTime = new Date(fireAt).getTime();
+  if (isNaN(fireTime)) {
+    throw new Error('Validation Error: Invalid fireAt date/timestamp.');
+  }
+
+  if (fireTime < Date.now()) {
+    throw new Error('Validation Error: fireAt timestamp must be in the future.');
+  }
+
+  // Verify that the session exists in the database
+  const session = await Session.findById(sessionId);
+  if (!session) {
+    throw new Error(`Validation Error: Session with ID "${sessionId}" not found.`);
   }
 
   try {
-    const fireTime = new Date(fireAt).getTime();
     const delay = fireTime - Date.now();
 
-    // Setup delayed job options
+    // Setup delayed job options with attempts and custom backoff delay strategy
     const jobOptions = {
-      delay: Math.max(0, delay),
-      jobId: `${sessionId}-${type}-${fireTime}`, // Prevent scheduling duplicates
+      delay,
+      attempts: 3,
+      backoff: {
+        type: 'customBackoff',
+      },
+      jobId: `${sessionId}-${type}-${fireTime}`, // Prevent duplicate scheduling
       removeOnComplete: true,
       removeOnFail: false,
     };
@@ -215,8 +243,15 @@ export async function scheduleReminder(sessionId, fireAt, type) {
       jobOptions
     );
 
-    console.log(`[NotificationService] Scheduled delayed job: ${job.id} for session: ${sessionId} (delay: ${jobOptions.delay}ms)`);
-    return job;
+    console.log(`[NotificationService] Scheduled delayed job: ${job.id} for session: ${sessionId} (type: ${type}, delay: ${delay}ms)`);
+    
+    return {
+      jobId: job.id,
+      sessionId,
+      type,
+      fireAt,
+      delay,
+    };
   } catch (error) {
     console.error(`[NotificationService] Error scheduling reminder for session ${sessionId}:`, error);
     throw error;
