@@ -1,4 +1,5 @@
 import * as curriculumService from '../service/curriculumService.js';
+import * as sessionService from '../service/sessionService.js';
 import { Instructor, Topic } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
 import multer from 'multer';
@@ -227,5 +228,63 @@ export const deleteCourse = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Course deleted successfully',
+  });
+});
+
+/**
+ * POST /api/v1/instructor/sessions
+ */
+export const createSession = asyncHandler(async (req, res) => {
+  const session = await sessionService.createSession(req.body, req.user.id);
+  res.status(201).json({
+    success: true,
+    message: 'Session created and scheduled successfully',
+    data: session,
+  });
+});
+
+/**
+ * GET /api/v1/instructor/sessions/:batchId
+ */
+export const getSessions = asyncHandler(async (req, res) => {
+  const sessions = await sessionService.getSessionsByBatch(req.params.batchId);
+  res.status(200).json({
+    success: true,
+    data: sessions,
+  });
+});
+
+/**
+ * PUT /api/v1/instructor/sessions/:id
+ */
+export const updateSession = asyncHandler(async (req, res) => {
+  const session = await sessionService.updateSession(req.params.id, req.body);
+  res.status(200).json({
+    success: true,
+    message: 'Session updated successfully',
+    data: session,
+  });
+});
+
+/**
+ * PATCH /api/v1/instructor/sessions/:id/status
+ */
+export const transitionSessionStatus = asyncHandler(async (req, res) => {
+  const session = await sessionService.transitionSessionStatus(req.params.id, req.body.status);
+  res.status(200).json({
+    success: true,
+    message: 'Session status updated successfully',
+    data: session,
+  });
+});
+
+/**
+ * DELETE /api/v1/instructor/sessions/:id
+ */
+export const deleteSession = asyncHandler(async (req, res) => {
+  await sessionService.deleteSession(req.params.id);
+  res.status(200).json({
+    success: true,
+    message: 'Session deleted successfully',
   });
 });

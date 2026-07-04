@@ -56,4 +56,27 @@ router.post(
 
 router.delete('/topics/:id/notes/:fileId', instructorController.deleteNote);
 
+// Session & Assignment Endpoints
+router.get('/sessions/:batchId', instructorController.getSessions);
+
+router.post(
+  '/sessions',
+  instructorValidator.createSessionValidator,
+  instructorController.createSession
+);
+
+router.put(
+  '/sessions/:id',
+  instructorValidator.updateSessionValidator,
+  instructorController.updateSession
+);
+
+router.patch(
+  '/sessions/:id/status',
+  instructorValidator.transitionStatusValidator,
+  instructorController.transitionSessionStatus
+);
+
+router.delete('/sessions/:id', instructorController.deleteSession);
+
 export default router;
