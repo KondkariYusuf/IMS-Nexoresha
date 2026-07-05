@@ -4,10 +4,21 @@ import { schemaOptions, uuidId } from './modelHelpers.js';
 const studentSchema = new mongoose.Schema(
   {
     _id: uuidId,
-    enrollementNo: { type: String, required: true, unique: true, trim: true },
+    enrollementNo: {
+      type: String,
+      unique: true,
+      trim: true,
+      sparse: true,
+      default: null,
+    },
+
     userId: { type: String, ref: 'User' },
     educationQualification: { type: String, trim: true },
-    dob: { type: Date, required: true },
+
+    dob: {
+      type: Date,
+      default: null,
+    },
     gender: { type: String, trim: true },
     profilePic: { type: String, trim: true },
     resume: { type: String, trim: true },
