@@ -1,5 +1,6 @@
 import * as curriculumService from '../service/curriculumService.js';
 import * as sessionService from '../service/sessionService.js';
+import * as profileService from '../service/profileService.js';
 import { Instructor, Topic } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
 import multer from 'multer';
@@ -286,5 +287,109 @@ export const deleteSession = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     message: 'Session deleted successfully',
+  });
+});
+
+// Ensure public/uploads/instructors directory exists
+const photoUploadDir = 'public/uploads/instructors';
+if (!fs.existsSync(photoUploadDir)) {
+  fs.mkdirSync(photoUploadDir, { recursive: true });
+}
+
+// Multer photo upload configuration
+const photoStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, photoUploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const photoFileFilter = (req, file, cb) => {
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+  const ext = path.extname(file.originalname).toLowerCase();
+  if (allowedExtensions.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new CustomError('Invalid photo format. Only JPG, JPEG, PNG, and WEBP images are allowed.', 400), false);
+  }
+};
+
+export const uploadPhoto = multer({
+  storage: photoStorage,
+  fileFilter: photoFileFilter,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+});
+
+/**
+ * GET /api/v1/instructor/profile
+ */
+export const getProfile = asyncHandler(async (req, res) => {
+  const profile = await profileService.getInstructorProfile(req.user.id);
+  res.status(200).json({
+    success: true,
+    data: profile,
+  });
+});
+
+/**
+ * PUT /api/v1/instructor/profile
+ */
+export const updateProfile = asyncHandler(async (req, res) => {
+  let photoPath;
+  if (req.file) {
+    photoPath = `/uploads/instructors/${req.file.filename}`;
+  }
+  const updatedProfile = await profileService.updateInstructorProfile(req.user.id, req.body, photoPath);
+  res.status(200).json({
+    success: true,
+    message: 'Profile updated successfully',
+    data: updatedProfile,
+  });
+});
+
+/**
+ * GET /api/v1/instructor/dashboard
+ */
+export const getDashboard = asyncHandler(async (req, res) => {
+  const stats = await profileService.getInstructorDashboard(req.user.id);
+  res.status(200).json({
+    success: true,
+    data: stats,
+  });
+});
+
+/**
+ * GET /api/v1/instructor/batches
+ */
+export const getBatches = asyncHandler(async (req, res) => {
+  const batches = await profileService.getInstructorBatches(req.user.id);
+  res.status(200).json({
+    success: true,
+    data: batches,
+  });
+});
+
+/**
+ * GET /api/v1/instructor/students/:batchId
+ */
+export const getStudentBreakdown = asyncHandler(async (req, res) => {
+  const breakdown = await profileService.getStudentBreakdown(req.params.batchId);
+  res.status(200).json({
+    success: true,
+    data: breakdown,
+  });
+});
+
+/**
+ * GET /api/v1/instructor/sessions/summary/:sessionId
+ */
+export const getSessionSummary = asyncHandler(async (req, res) => {
+  const summary = await profileService.getSessionSummary(req.params.sessionId);
+  res.status(200).json({
+    success: true,
+    data: summary,
   });
 });

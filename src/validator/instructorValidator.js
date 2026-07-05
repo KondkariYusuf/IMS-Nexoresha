@@ -367,3 +367,47 @@ export const transitionStatusValidator = [
     .withMessage('status must be one of: In Progress, completed, cancelled'),
   handleValidationErrors,
 ];
+
+export const updateProfileValidator = [
+  body('name')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Name cannot be empty')
+    .isLength({ max: 100 })
+    .withMessage('Name cannot exceed 100 characters'),
+  body('designation')
+    .optional()
+    .trim()
+    .notEmpty()
+    .withMessage('Designation cannot be empty')
+    .isLength({ max: 100 })
+    .withMessage('Designation cannot exceed 100 characters'),
+  body('bio')
+    .optional()
+    .trim()
+    .isLength({ max: 1000 })
+    .withMessage('Bio cannot exceed 1000 characters'),
+  body('linkedInUrl')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isURL()
+    .withMessage('linkedInUrl must be a valid URL'),
+  handleValidationErrors,
+];
+
+export const batchIdParamValidator = [
+  param('batchId')
+    .trim()
+    .notEmpty()
+    .withMessage('Batch ID parameter is required'),
+  handleValidationErrors,
+];
+
+export const sessionIdParamValidator = [
+  param('sessionId')
+    .trim()
+    .notEmpty()
+    .withMessage('Session ID parameter is required'),
+  handleValidationErrors,
+];

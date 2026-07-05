@@ -79,4 +79,25 @@ router.patch(
 
 router.delete('/sessions/:id', instructorController.deleteSession);
 
+// Profile & Dashboard Endpoints
+router.get('/profile', instructorController.getProfile);
+router.put(
+  '/profile',
+  instructorController.uploadPhoto.single('photo'),
+  instructorValidator.updateProfileValidator,
+  instructorController.updateProfile
+);
+router.get('/dashboard', instructorController.getDashboard);
+router.get('/batches', instructorController.getBatches);
+router.get(
+  '/students/:batchId',
+  instructorValidator.batchIdParamValidator,
+  instructorController.getStudentBreakdown
+);
+router.get(
+  '/sessions/summary/:sessionId',
+  instructorValidator.sessionIdParamValidator,
+  instructorController.getSessionSummary
+);
+
 export default router;
