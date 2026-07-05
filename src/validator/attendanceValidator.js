@@ -63,3 +63,19 @@ export function validateAttendanceRequest(req, res, next) {
 
   next();
 }
+
+export function validateAttendanceReUploadRequest(req, res, next) {
+  // First run the common validations
+  validateAttendanceRequest(req, res, (err) => {
+    if (err) return next(err);
+
+    if (typeof req.body.isEntireAttendance !== 'boolean') {
+      return res.status(400).json({
+        success: false,
+        message: 'isEntireAttendance must be true or false',
+      });
+    }
+
+    next();
+  });
+}

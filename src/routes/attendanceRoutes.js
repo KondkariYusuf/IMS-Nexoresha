@@ -5,7 +5,10 @@ import {
   getAttendance,
 } from '../controller/attendanceController.js';
 
-import { validateAttendanceRequest } from '../validator/attendanceValidator.js';
+import {
+  validateAttendanceRequest,
+  validateAttendanceReUploadRequest,
+} from '../validator/attendanceValidator.js';
 
 const router = Router();
 
@@ -17,7 +20,7 @@ router.post(
 
 router.put(
   '/reupload',
-  validateAttendanceRequest,
+  validateAttendanceReUploadRequest,
   uploadAttendanceAgain,
 );
 

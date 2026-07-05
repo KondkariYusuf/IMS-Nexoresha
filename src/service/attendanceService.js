@@ -71,13 +71,51 @@ export async function markAttendance(data) {
 }
 
 export async function reUploadAttendance(data) {
-  const { sessionId } = data;
+  const { sessionId, courseId, attendance, isEntireAttendance } = data;
 
-  // Delete all previous attendance for this session
-  await Attendance.deleteMany({ sessionId });
+  if (isEntireAttendance) {
+    // Delete all previous attendance for this session
+    await Attendance.deleteMany({ sessionId });
 
-  // Reuse upload logic
-  return await markAttendance(data);
+    // Reuse upload logic
+    return await markAttendance(data);
+  }
+
+  // Partial update - update only students present in payload
+  for (const student of attendance) {
+    const status = getAttendanceStatus(
+      student.first_half,
+      student.second_half,
+    );
+
+    const updatedAttendance = await Attendance.findOneAndUpdate(
+      {
+        sessionId,
+        studentId: student.studentId,
+      },
+      {
+        courseId,
+        status,
+        markedAt: new Date(),
+      },
+      {
+        new: true,
+      },
+    );
+
+    if (!updatedAttendance) {
+      throw new CustomError(
+        `Attendance not found for student: ${student.studentId}`,
+        404,
+      );
+    }
+  }
+
+  return {
+    success: true,
+    message: 'Attendance updated successfully.',
+    totalStudents: attendance.length,
+  };
 }
 
 export async function getAttendanceBySession(sessionId) {
