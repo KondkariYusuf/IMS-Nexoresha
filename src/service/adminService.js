@@ -1,4 +1,10 @@
-import { User, Student, Batch, BatchConfig } from '../models/index.js';
+import {
+    User,
+    Student,
+    Batch,
+    BatchConfig,
+    Instructor,
+} from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
@@ -380,6 +386,40 @@ class AdminService {
         return {
             message: 'Batch config updated successfully',
             batchConfig,
+        };
+    }
+    async getDashboard() {
+        const totalStudents = await Student.countDocuments();
+
+        const totalTeachers = await Instructor.countDocuments();
+
+        const totalBatches = await Batch.countDocuments();
+
+        const topScorers = await Student.find()
+            .sort({ totalPoints: -1 })
+            .limit(5)
+            .populate({
+                path: 'userId',
+                select: 'name email',
+            });
+
+        const bottomScorers = await Student.find()
+            .sort({ totalPoints: 1 })
+            .limit(5)
+            .populate({
+                path: 'userId',
+                select: 'name email',
+            });
+
+        return {
+            message: 'Dashboard fetched successfully',
+            dashboard: {
+                totalStudents,
+                totalTeachers,
+                totalBatches,
+                topScorers,
+                bottomScorers,
+            },
         };
     }
 }

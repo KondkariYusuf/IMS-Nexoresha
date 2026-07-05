@@ -79,4 +79,8 @@ router.put(
     '/batch-config/:batchId',
     adminController.updateBatchConfig,
 );
+router.get(
+    '/dashboard',
+    adminController.getDashboard,
+);
 export default router;

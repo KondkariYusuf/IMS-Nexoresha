@@ -164,6 +164,14 @@ class AdminController {
             next(error);
         }
     }
+    async getDashboard(req, res, next) {
+        try {
+            const result = await adminService.getDashboard();
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 export default new AdminController();
