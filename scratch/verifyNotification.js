@@ -24,7 +24,7 @@ async function runTests() {
     // Clear previous test records
     console.log('Cleaning existing test records...');
     await Promise.all([
-      User.deleteMany({ email: /@test-notification\.com$/ }),
+      User.deleteMany({ email: { $in: [/@test-notification\.com$/, 'saadkazi7446@gmail.com'] } }),
       Role.deleteMany({ name: { $in: ['admin', 'student'] } }),
       Batch.deleteMany({ name: /Test Batch/ }),
       Student.deleteMany({}),
@@ -49,7 +49,7 @@ async function runTests() {
     });
 
     const activeUser = await User.create({
-      email: 'active-student@test-notification.com',
+      email: 'saadkazi7446@gmail.com',
       mobileNo: '1234567891',
       name: 'Active Student',
       password: 'password123',

@@ -270,7 +270,14 @@ async function runTests() {
     if (redisAvailable) {
       console.log('Redis is running. Setting up worker and starting queue tests...');
       
-      // Clean the queue completely to avoid stale jobs interference
+      // Wait for any active jobs to finish and ensure queue is clean
+      let activeJobsCount = await codeReviewQueue.getActiveCount();
+      while (activeJobsCount > 0) {
+        console.log(`Waiting for ${activeJobsCount} active job(s) to finish...`);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        activeJobsCount = await codeReviewQueue.getActiveCount();
+      }
+
       await codeReviewQueue.empty();
       await codeReviewQueue.clean(0, 'completed');
       await codeReviewQueue.clean(0, 'wait');
