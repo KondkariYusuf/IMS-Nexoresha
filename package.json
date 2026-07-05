@@ -10,6 +10,7 @@
     "dev": "node --watch src/server.js"
   },
   "dependencies": {
+    "bull": "^4.16.5",
     "cloudinary": "^1.41.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
@@ -17,9 +18,12 @@
     "express-rate-limit": "^7.5.0",
     "express-validator": "^7.3.2",
     "helmet": "^8.0.0",
+    "ioredis": "^5.11.1",
     "mongoose": "^8.15.1",
     "morgan": "^1.10.0",
     "multer": "^2.2.0",
-    "multer-storage-cloudinary": "^4.0.0"
+    "multer-storage-cloudinary": "^4.0.0",
+    "nodemailer": "^9.0.3",
+    "redis": "^6.1.0"
   }
 }

@@ -88,6 +88,28 @@ export async function createSession(sessionData, creatorId) {
   });
 
   await session.save();
+
+  // Automatically schedule 24-hour and 1-hour reminders if the session is set in the future
+  if (session.sessionDateAndTime) {
+    const fire24h = new Date(session.sessionDateAndTime.getTime() - 24 * 60 * 60 * 1000);
+    if (fire24h > new Date()) {
+      try {
+        await notificationService.scheduleReminder(session._id, fire24h, 'lecture_reminder_24h');
+      } catch (err) {
+        console.error('[SessionService] Failed to schedule 24h reminder:', err.message);
+      }
+    }
+
+    const fire1h = new Date(session.sessionDateAndTime.getTime() - 60 * 60 * 1000);
+    if (fire1h > new Date()) {
+      try {
+        await notificationService.scheduleReminder(session._id, fire1h, 'lecture_reminder_1h');
+      } catch (err) {
+        console.error('[SessionService] Failed to schedule 1h reminder:', err.message);
+      }
+    }
+  }
+
   return session;
 }
 
@@ -207,7 +229,7 @@ export async function transitionSessionStatus(sessionId, nextStatus) {
 
     const fireAt = new Date(assignment.submissionDeadline.getTime() - 24 * 60 * 60 * 1000);
     if (fireAt > new Date()) {
-      await notificationService.scheduleReminder(session._id, fireAt, 'assignment_deadline_reminder');
+      await notificationService.scheduleReminder(session._id, fireAt, 'assignment_deadline_24h');
     }
   } else if (nextStatus === 'cancelled') {
     await notificationService.notifyBatch(session.batchId, 'session_cancelled', `The session "${session.title}" has been cancelled`, {

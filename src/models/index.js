@@ -16,3 +16,4 @@ export { default as QuizResult } from './quizResult.model.js';
 export { default as StudentLedger } from './studentLedger.model.js';
 export { default as StudentMetrics } from './studentMetrics.model.js';
 export { default as Topic } from './topic.model.js';
+export { default as Notification } from './notification.model.js';
