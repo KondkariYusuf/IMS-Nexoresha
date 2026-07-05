@@ -1,15 +1,20 @@
 import { codeReviewQueue } from '../queues/codeReviewQueue.js';
-import { AssignmentSubmission, AssignmentResult, Assignment, Student, User } from '../models/index.js';
+import { AssignmentSubmission, AssignmentResult, Assignment, Student } from '../models/index.js';
 import { createNotification, sendEmail, notifyAdmins } from './notificationService.js';
 import { applyPointsEvent } from './pointsService.js';
+
+// Constants for grading and scores
+const TOTAL_MARKS = 10;
+const PASSING_MARKS = 7;
+const API_TIMEOUT_MS = 10000; // 10 seconds timeout
 
 /**
  * Validate if a URL is a valid GitHub repository URL.
  */
 function isValidGithubUrl(url) {
   if (!url || typeof url !== 'string') return false;
-  // Match standard github urls
-  const githubRegex = /^(https?:\/\/)?(www\.)?github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+/;
+  // Match standard secure github repository URLs strictly
+  const githubRegex = /^https:\/\/github\.com\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+(?:\.git)?\/?$/;
   return githubRegex.test(url);
 }
 
@@ -27,6 +32,11 @@ export async function queueReview(submissionId) {
     throw new Error(`Validation Error: Assignment submission not found with ID "${submissionId}".`);
   }
 
+  // Prevent duplicate review jobs
+  if (submission.reviewStatus === 'pending') {
+    throw new Error('Review already queued.');
+  }
+
   // 2. Validate GitHub URL
   const githubUrl = submission.gitSubmissionLink;
   if (!isValidGithubUrl(githubUrl)) {
@@ -38,8 +48,7 @@ export async function queueReview(submissionId) {
   // 3. Queue the job in Bull with 3 attempts and custom backoff delay
   const job = await codeReviewQueue.add(
     { 
-      submissionId,
-      apiUrl: process.env.CODE_REVIEW_API_URL || null
+      submissionId
     },
     {
       attempts: 3,
@@ -60,37 +69,23 @@ export async function queueReview(submissionId) {
 }
 
 /**
- * Call the external code review API (or use mock mode if API URL is not set).
+ * Call the external code review API.
  */
 export async function callCodeReviewApi(githubUrl, apiUrl) {
   if (!isValidGithubUrl(githubUrl)) {
     throw new Error('Validation Error: Invalid GitHub URL.');
   }
 
-  const apiKey = process.env.CODE_REVIEW_API_KEY;
-
   if (!apiUrl) {
-    // Mock review mode for testing when API URL is missing
-    console.log(`[CodeReviewService] [Mock Mode] apiUrl is missing. Simulating code review API call for ${githubUrl}...`);
-    
-    // Simulate slight network delay
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    const marksObtained = Math.round((5 + Math.random() * 5) * 10) / 10; // Random score between 5.0 and 10.0
-    const codeQualityScore = Math.round(5 + Math.random() * 5); // 5 to 10
-    const pass = marksObtained >= 7;
-    const feedback = `[Mock Review] Analysis complete for repository. Code structure is robust, proper naming conventions used. ${pass ? 'Excellent work, all criteria met.' : 'Please address code styling issues.'}`;
-    
-    const mockResponse = {
-      marksObtained,
-      codeQualityScore,
-      feedback
-    };
-    console.log('[CodeReviewService] [Mock Mode] API response:', mockResponse);
-    return mockResponse;
+    throw new Error('Configuration Error: CODE_REVIEW_API_URL is not set.');
   }
 
+  const apiKey = process.env.CODE_REVIEW_API_KEY;
+
   console.log(`[CodeReviewService] Calling external API at ${apiUrl} for ${githubUrl}...`);
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
   try {
     const response = await fetch(apiUrl, {
@@ -99,8 +94,11 @@ export async function callCodeReviewApi(githubUrl, apiUrl) {
         'Content-Type': 'application/json',
         'Authorization': apiKey ? `Bearer ${apiKey}` : ''
       },
-      body: JSON.stringify({ githubUrl })
+      body: JSON.stringify({ githubUrl }),
+      signal: controller.signal
     });
+
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
       const text = await response.text();
@@ -109,8 +107,26 @@ export async function callCodeReviewApi(githubUrl, apiUrl) {
 
     const data = await response.json();
     console.log('[CodeReviewService] External API Response received:', data);
+
+    // Validate external API response schema
+    if (
+      data === null ||
+      typeof data !== 'object' ||
+      typeof data.marksObtained !== 'number' ||
+      Number.isNaN(data.marksObtained) ||
+      typeof data.codeQualityScore !== 'number' ||
+      Number.isNaN(data.codeQualityScore)
+    ) {
+      throw new Error('Invalid API response format');
+    }
+
+    if (typeof data.feedback !== 'string') {
+      data.feedback = '';
+    }
+
     return data;
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error(`[CodeReviewService] External API call failed: ${error.message}`);
     throw error; // Propagate to trigger worker retry
   }
@@ -131,9 +147,9 @@ export async function handleReviewResult(submissionId, result) {
   // 2. Fetch assignment to check deadline
   const assignment = await Assignment.findById(submission.assignmentId);
   
-  // Extract scores
-  const marksObtained = Number(result.marksObtained) || 0;
-  const codeQualityScore = Number(result.codeQualityScore) || 0;
+  // Extract and clamp scores
+  const marksObtained = Math.max(0, Math.min(TOTAL_MARKS, Number(result.marksObtained) || 0));
+  const codeQualityScore = Math.max(0, Math.min(TOTAL_MARKS, Number(result.codeQualityScore) || 0));
   const feedback = result.feedback || '';
 
   // 3. Set points = 0 if submission was late, else points = marksObtained
@@ -141,17 +157,17 @@ export async function handleReviewResult(submissionId, result) {
     (submission.submittedAt && assignment && new Date(submission.submittedAt) > new Date(assignment.submissionDeadline));
   
   const points = isLate ? 0 : marksObtained;
-  const percentage = (marksObtained / 10) * 100;
+  const percentage = (marksObtained / TOTAL_MARKS) * 100;
   const bonusPoints = 0;
   const totalPoints = points + bonusPoints;
   
   // 4. Pass/Fail status
-  const passFailResult = marksObtained >= 7 ? 'pass' : 'failed';
+  const passFailResult = marksObtained >= PASSING_MARKS ? 'pass' : 'failed';
 
   // 5. Create AssignmentResult document
   const assignmentResult = new AssignmentResult({
     submissionId,
-    totalMarks: 10,
+    totalMarks: TOTAL_MARKS,
     marksObtained,
     percentage,
     points,
@@ -191,7 +207,7 @@ export async function handleReviewResult(submissionId, result) {
     if (student && student.userId) {
       const studentUserId = student.userId._id;
       const studentEmail = student.userId.email;
-      const message = `Your code review for assignment submission is completed. Score: ${marksObtained}/10 (${passFailResult.toUpperCase()}).`;
+      const message = `Your code review for assignment submission is completed. Score: ${marksObtained}/${TOTAL_MARKS} (${passFailResult.toUpperCase()}).`;
 
       await createNotification(studentUserId, 'code_review_completed', message, {
         submissionId,
@@ -202,8 +218,8 @@ export async function handleReviewResult(submissionId, result) {
       if (studentEmail) {
         await sendEmail(
           studentEmail,
-          `[IMS] Code Review Completed - Score: ${marksObtained}/10`,
-          `<p>${message}</p><p><strong>Feedback:</strong> ${feedback}</p><p><strong>Code Quality Score:</strong> ${codeQualityScore}/10</p>`
+          `[IMS] Code Review Completed - Score: ${marksObtained}/${TOTAL_MARKS}`,
+          `<p>${message}</p><p><strong>Feedback:</strong> ${feedback}</p><p><strong>Code Quality Score:</strong> ${codeQualityScore}/${TOTAL_MARKS}</p>`
         );
       }
     }

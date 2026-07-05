@@ -2,30 +2,28 @@ import Queue from "bull";
 import IORedis from "ioredis";
 
 function createRedisClient() {
-  return new IORedis(process.env.REDIS_URL, {
-    tls: {},
+  const redisUrl = process.env.REDIS_URL || "";
+  const isRemote = redisUrl.startsWith("rediss://") || redisUrl.includes("upstash.io");
+
+  const redisOptions = {
     enableReadyCheck: false,
     maxRetriesPerRequest: null
-  });
+  };
+
+  if (isRemote) {
+    redisOptions.tls = {};
+  }
+
+  return new IORedis(redisUrl, redisOptions);
 }
 
 export const codeReviewQueue = new Queue(
-  "code-review",
+  process.env.NODE_ENV === "test"
+    ? (process.env.TEST_QUEUE_NAME || "code-review-test")
+    : "code-review",
   {
     createClient(type) {
-      switch (type) {
-        case "client":
-          return createRedisClient();
-
-        case "subscriber":
-          return createRedisClient();
-
-        case "bclient":
-          return createRedisClient();
-
-        default:
-          return createRedisClient();
-      }
+      return createRedisClient();
     },
 
     settings: {
@@ -38,10 +36,6 @@ export const codeReviewQueue = new Queue(
           const delays = isTest
             ? [100, 200, 300]
             : [60000, 300000, 900000];
-
-          console.log("FAST_RETRY =", process.env.FAST_RETRY);
-          console.log("isTest =", isTest);
-          console.log("Retry delay =", delays[attemptsMade - 1] || delays[2]);
 
           return delays[attemptsMade - 1] || delays[2];
         }

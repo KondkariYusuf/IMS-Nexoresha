@@ -7,45 +7,47 @@ import { connectDatabase } from '../../config/database.js';
 
 console.log('[CodeReviewWorker] Worker script loaded and listening for queue jobs...');
 
-// Process the code-review queue
-codeReviewQueue.process(async (job) => {
-  const { submissionId, apiUrl } = job.data;
+// Prevent duplicate worker process registration and duplicate event listeners
+if (!global.__codeReviewWorkerRegistered) {
+  global.__codeReviewWorkerRegistered = true;
 
-  console.log(`[CodeReviewWorker] Job ${job.id} started. Submission ID: ${submissionId}, API URL: ${apiUrl}`);
+  // Process the code-review queue
+  codeReviewQueue.process(async (job) => {
+    const { submissionId } = job.data;
 
-  try {
-    // 1. Fetch submission from database
-    const submission = await AssignmentSubmission.findById(submissionId);
-    if (!submission) {
-      console.warn(`[CodeReviewWorker] Job ${job.id} skipped: Submission "${submissionId}" not found.`);
-      return;
+    console.log(`[CodeReviewWorker] Job ${job.id} started (attempt ${job.attemptsMade + 1}/${job.opts.attempts}). Submission ID: ${submissionId}`);
+
+    try {
+      // 1. Fetch submission from database
+      const submission = await AssignmentSubmission.findById(submissionId);
+      if (!submission) {
+        console.warn(`[CodeReviewWorker] Job ${job.id} skipped: Submission "${submissionId}" not found.`);
+        return;
+      }
+
+      // 2. Extract and validate GitHub URL
+      const githubUrl = submission.gitSubmissionLink;
+      if (!githubUrl) {
+        throw new Error(`Invalid GitHub URL for submission "${submissionId}": URL is missing.`);
+      }
+
+      // 3. Call code review API (or mock review mode if API URL is not set)
+      const reviewResult = await callCodeReviewApi(githubUrl, process.env.CODE_REVIEW_API_URL);
+
+      // 4. Update DB and Notify student
+      await handleReviewResult(submissionId, reviewResult);
+
+      console.log(`[CodeReviewWorker] Job ${job.id} completed successfully.`);
+    } catch (error) {
+      console.error(`[CodeReviewWorker] Job ${job.id} failed (attempt ${job.attemptsMade + 1}/${job.opts.attempts}): ${error.message}`);
+      // Throwing error prompts Bull to perform backoff retries if attempts remain
+      throw error;
     }
+  });
 
-    // 2. Extract and validate GitHub URL
-    const githubUrl = submission.gitSubmissionLink;
-    if (!githubUrl) {
-      throw new Error(`Invalid GitHub URL for submission "${submissionId}": URL is missing.`);
-    }
-
-    // 3. Call code review API (or mock review mode if API URL is not set)
-    const reviewResult = await callCodeReviewApi(githubUrl, apiUrl);
-
-    // 4. Update DB and Notify student
-    await handleReviewResult(submissionId, reviewResult);
-
-    console.log(`[CodeReviewWorker] Job ${job.id} completed successfully.`);
-  } catch (error) {
-    console.error(`[CodeReviewWorker] Job ${job.id} failed (attempt ${job.attemptsMade}): ${error.message}`);
-    // Throwing error prompts Bull to perform backoff retries if attempts remain
-    throw error;
-  }
-});
-
-// Listen for job failure events to handle final failures when retries are exhausted
-if (codeReviewQueue.listeners('failed').length === 0) {
+  // Listen for job failure events to handle final failures when retries are exhausted
   codeReviewQueue.on('failed', async (job, err) => {
     const { submissionId } = job.data;
-    console.error(`[CodeReviewWorker] Job ${job.id} failed attempt. Attempt: ${job.attemptsMade}/${job.opts.attempts}. Error: ${err.message}`);
 
     // Check if all retries are exhausted
     if (job.attemptsMade >= job.opts.attempts) {
@@ -56,6 +58,8 @@ if (codeReviewQueue.listeners('failed').length === 0) {
       } catch (handlerError) {
         console.error(`[CodeReviewWorker] Error running handleReviewError: ${handlerError.message}`);
       }
+    } else {
+      console.warn(`[CodeReviewWorker] Job ${job.id} failed attempt ${job.attemptsMade + 1}/${job.opts.attempts}. Retrying based on backoff strategy...`);
     }
   });
 }
