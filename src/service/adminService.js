@@ -1,5 +1,6 @@
-import { User, Student } from '../models/index.js';
+import { User, Student, Batch } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
+import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
 
 class AdminService {
@@ -162,6 +163,160 @@ class AdminService {
                 path: 'userId',
                 select: '-password',
             }),
+        };
+    }
+    async createBatch(batchData) {
+        const {
+            name,
+            description,
+            startDate,
+            endDate,
+            teacherIds,
+            studentIds,
+        } = batchData;
+
+        const existingBatch = await Batch.findOne({ name });
+
+        if (existingBatch) {
+            throw new CustomError('Batch already exists', 400);
+        }
+
+        const batch = await Batch.create({
+            name,
+            description: description || '',
+            startDate: startDate || null,
+            endDate: endDate || null,
+            teacherIds: teacherIds || [],
+            studentIds: studentIds || [],
+        });
+
+        return {
+            message: 'Batch created successfully',
+            batch,
+        };
+    }
+    async getBatches() {
+        const batches = await Batch.find();
+
+        return {
+            message: 'Batches fetched successfully',
+            batches,
+        };
+    }
+    async getBatchById(batchId) {
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        return {
+            message: 'Batch fetched successfully',
+            batch,
+        };
+    }
+    async updateBatch(batchId, batchData) {
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        if (batchData.name) batch.name = batchData.name;
+        if (batchData.description !== undefined) batch.description = batchData.description;
+        if (batchData.startDate !== undefined) batch.startDate = batchData.startDate || null;
+        if (batchData.endDate !== undefined) batch.endDate = batchData.endDate || null;
+        if (batchData.teacherIds !== undefined) batch.teacherIds = batchData.teacherIds;
+        if (batchData.studentIds !== undefined) batch.studentIds = batchData.studentIds;
+
+        await batch.save();
+
+        return {
+            message: 'Batch updated successfully',
+            batch,
+        };
+    }
+    async deleteBatch(batchId) {
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        await batch.deleteOne();
+
+        return {
+            message: 'Batch deleted successfully',
+        };
+    }
+    async updateBatchStatus(batchId, status) {
+        const allowedStatus = ['upcoming', 'ongoing', 'completed'];
+
+        if (!allowedStatus.includes(status)) {
+            throw new CustomError('Invalid batch status', 400);
+        }
+
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        batch.status = status;
+        await batch.save();
+
+        return {
+            message: 'Batch status updated successfully',
+            batch,
+        };
+    }
+    async closeBatch(batchId) {
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        batch.status = 'completed';
+
+        await batch.save();
+
+        return {
+            message: 'Batch closed successfully',
+            batch,
+        };
+    }
+    async generateRecruiterLink(batchId) {
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        batch.recruiterUuid = uuidv4();
+        batch.recruiterLinkActive = true;
+
+        await batch.save();
+
+        return {
+            message: 'Recruiter link generated successfully',
+            recruiterUuid: batch.recruiterUuid,
+        };
+    }
+    async revokeRecruiterLink(batchId) {
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        batch.recruiterUuid = null;
+        batch.recruiterLinkActive = false;
+
+        await batch.save();
+
+        return {
+            message: 'Recruiter link revoked successfully',
         };
     }
 }

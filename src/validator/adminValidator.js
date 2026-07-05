@@ -18,3 +18,13 @@ export function validateCreateStudent(req, _res, next) {
 
     next();
 }
+
+export function validateCreateBatch(req, _res, next) {
+    const { name } = req.body;
+
+    if (isEmptyValue(name)) {
+        throw new CustomError('Batch name is required', 400);
+    }
+
+    next();
+}
