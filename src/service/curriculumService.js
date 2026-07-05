@@ -1,17 +1,43 @@
 import { Topic, Course, Session } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
+import { cloudinary, isCloudinaryConfigured } from '../../config/cloudinary.js';
 import fs from 'fs/promises';
 import path from 'path';
 
-// Helper to delete local notes file
+// Helper to delete notes file (Cloudinary or Local)
 async function deleteLocalFile(filePath) {
-  try {
-    const absolutePath = path.resolve(filePath);
-    await fs.unlink(absolutePath);
-  } catch (error) {
-    // If file doesn't exist, we don't crash
-    if (error.code !== 'ENOENT') {
-      console.error(`Error deleting note file at ${filePath}:`, error);
+  if (isCloudinaryConfigured && filePath.startsWith('http')) {
+    try {
+      // Extract the path after /upload/v[digits]/ or /upload/
+      const match = filePath.match(/\/upload\/(?:v\d+\/)?(.+)$/);
+      if (match) {
+        let publicId = match[1];
+        
+        // Determine resource type based on file extension
+        const ext = path.extname(filePath).toLowerCase();
+        let resourceType = 'raw';
+        if (['.jpg', '.jpeg', '.png', '.webp', '.gif'].includes(ext)) {
+          resourceType = 'image';
+          const lastDotIndex = publicId.lastIndexOf('.');
+          if (lastDotIndex !== -1) {
+            publicId = publicId.substring(0, lastDotIndex);
+          }
+        }
+        
+        await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
+      }
+    } catch (error) {
+      console.error(`Error deleting Cloudinary file at ${filePath}:`, error);
+    }
+  } else {
+    try {
+      const absolutePath = path.resolve(filePath);
+      await fs.unlink(absolutePath);
+    } catch (error) {
+      // If file doesn't exist, we don't crash
+      if (error.code !== 'ENOENT') {
+        console.error(`Error deleting local note file at ${filePath}:`, error);
+      }
     }
   }
 }

@@ -3,6 +3,8 @@ import * as sessionService from '../service/sessionService.js';
 import * as profileService from '../service/profileService.js';
 import { Instructor, Topic } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
+import { cloudinary, isCloudinaryConfigured } from '../../config/cloudinary.js';
+import { CloudinaryStorage } from 'multer-storage-cloudinary';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -13,16 +15,27 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-// Multer Disk Storage configuration
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  },
-});
+// Multer storage setup with Cloudinary fallback
+let storage;
+if (isCloudinaryConfigured) {
+  storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: 'curriculum_notes',
+      resource_type: 'raw',
+    },
+  });
+} else {
+  storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, uploadDir);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      cb(null, uniqueSuffix + path.extname(file.originalname));
+    },
+  });
+}
 
 // File filter to restrict uploads to PDF, MD, and DOCX files
 const fileFilter = (req, file, cb) => {
@@ -297,15 +310,26 @@ if (!fs.existsSync(photoUploadDir)) {
 }
 
 // Multer photo upload configuration
-const photoStorage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, photoUploadDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
-  },
-});
+let photoStorage;
+if (isCloudinaryConfigured) {
+  photoStorage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+      folder: 'instructors',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    },
+  });
+} else {
+  photoStorage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      cb(null, photoUploadDir);
+    },
+    filename: function (req, file, cb) {
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+      cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
+    },
+  });
+}
 
 const photoFileFilter = (req, file, cb) => {
   const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
@@ -340,7 +364,7 @@ export const getProfile = asyncHandler(async (req, res) => {
 export const updateProfile = asyncHandler(async (req, res) => {
   let photoPath;
   if (req.file) {
-    photoPath = `/uploads/instructors/${req.file.filename}`;
+    photoPath = isCloudinaryConfigured ? req.file.path : `/uploads/instructors/${req.file.filename}`;
   }
   const updatedProfile = await profileService.updateInstructorProfile(req.user.id, req.body, photoPath);
   res.status(200).json({
