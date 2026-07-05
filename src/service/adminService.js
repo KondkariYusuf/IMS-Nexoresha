@@ -1,4 +1,4 @@
-import { User, Student, Batch } from '../models/index.js';
+import { User, Student, Batch, BatchConfig } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
@@ -317,6 +317,69 @@ class AdminService {
 
         return {
             message: 'Recruiter link revoked successfully',
+        };
+    }
+    async getBatchConfig(batchId) {
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        let batchConfig = await BatchConfig.findOne({ batchId });
+
+        if (!batchConfig) {
+            batchConfig = await BatchConfig.create({ batchId });
+        }
+
+        return {
+            message: 'Batch config fetched successfully',
+            batchConfig,
+        };
+    }
+    async updateBatchConfig(batchId, configData) {
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        const {
+            baseScore,
+            attendanceFull,
+            attendanceHalf,
+            attendanceMissed,
+            quizMax,
+            quizMissed,
+            markCap,
+            reason,
+        } = configData;
+
+        if (!reason || reason.trim().length < 20) {
+            throw new CustomError('Reason must be at least 20 characters', 400);
+        }
+
+        const batchConfig = await BatchConfig.findOneAndUpdate(
+            { batchId },
+            {
+                baseScore,
+                attendanceFull,
+                attendanceHalf,
+                attendanceMissed,
+                quizMax,
+                quizMissed,
+                markCap,
+                reason,
+            },
+            {
+                new: true,
+                upsert: true,
+            },
+        );
+
+        return {
+            message: 'Batch config updated successfully',
+            batchConfig,
         };
     }
 }

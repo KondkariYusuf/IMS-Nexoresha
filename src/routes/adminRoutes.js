@@ -71,4 +71,12 @@ router.delete(
     '/batches/:id/recruiter-link',
     adminController.revokeRecruiterLink,
 );
+router.get(
+    '/batch-config/:batchId',
+    adminController.getBatchConfig,
+);
+router.put(
+    '/batch-config/:batchId',
+    adminController.updateBatchConfig,
+);
 export default router;

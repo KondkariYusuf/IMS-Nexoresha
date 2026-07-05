@@ -144,6 +144,26 @@ class AdminController {
             next(error);
         }
     }
+    async getBatchConfig(req, res, next) {
+        try {
+            const result = await adminService.getBatchConfig(req.params.batchId);
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    }
+    async updateBatchConfig(req, res, next) {
+        try {
+            const result = await adminService.updateBatchConfig(
+                req.params.batchId,
+                req.body,
+            );
+
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 export default new AdminController();
