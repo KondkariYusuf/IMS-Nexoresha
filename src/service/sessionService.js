@@ -243,7 +243,7 @@ export async function transitionSessionStatus(sessionId, nextStatus) {
 }
 
 /**
- * Physically delete a session. Only allowed if status is 'scheduled' or 'postponed'.
+ * Cancel (soft-delete) a session. Only allowed if status is 'scheduled' or 'postponed'.
  */
 export async function deleteSession(sessionId) {
   const session = await Session.findById(sessionId);
@@ -252,9 +252,22 @@ export async function deleteSession(sessionId) {
   }
 
   if (session.status !== 'scheduled' && session.status !== 'postponed') {
-    throw new CustomError("Cannot delete session: only sessions in 'scheduled' or 'postponed' status can be deleted", 400);
+    throw new CustomError("Cannot delete session: only sessions in 'scheduled' or 'postponed' status can be cancelled/deleted", 400);
   }
 
-  await Session.findByIdAndDelete(sessionId);
+  session.status = 'cancelled';
+  await session.save();
+
+  try {
+    await notificationService.notifyBatch(
+      session.batchId,
+      'session_cancelled',
+      `The session "${session.title}" has been cancelled`,
+      { sessionId: session._id }
+    );
+  } catch (err) {
+    console.error('[SessionService] Error sending cancellation alerts:', err.message);
+  }
+
   return { success: true };
 }
