@@ -1,10 +1,27 @@
 import adminService from '../service/adminService.js';
+function sendSuccess(res, statusCode, result) {
+    const { message, ...data } = result;
+
+    return res.status(statusCode).json({
+        success: true,
+        data,
+        message,
+    });
+}
 
 class AdminController {
     async createStudent(req, res, next) {
         try {
             const result = await adminService.createStudent(req.body);
-            res.status(201).json(result);
+            sendSuccess(res, 201, result);
+        } catch (error) {
+            next(error);
+        }
+    }
+    async bulkCreateStudents(req, res, next) {
+        try {
+            const result = await adminService.bulkCreateStudents(req.body.students);
+            sendSuccess(res, 201, result);
         } catch (error) {
             next(error);
         }
@@ -12,8 +29,8 @@ class AdminController {
 
     async getStudents(req, res, next) {
         try {
-            const result = await adminService.getStudents();
-            res.status(200).json(result);
+            const result = await adminService.getStudents(req.query);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -23,7 +40,7 @@ class AdminController {
 
         try {
             const result = await adminService.getStudentById(req.params.id);
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -35,7 +52,7 @@ class AdminController {
                 req.body,
             );
 
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -47,7 +64,7 @@ class AdminController {
                 req.body.profileStatus,
             );
 
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -56,10 +73,10 @@ class AdminController {
         try {
             const result = await adminService.moveStudentToBatch(
                 req.params.id,
-                req.body.batchId,
+                req.body.newBatchId,
             );
 
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -67,7 +84,7 @@ class AdminController {
     async createBatch(req, res, next) {
         try {
             const result = await adminService.createBatch(req.body);
-            res.status(201).json(result);
+            sendSuccess(res, 201, result);
         } catch (error) {
             next(error);
         }
@@ -75,7 +92,7 @@ class AdminController {
     async getBatches(req, res, next) {
         try {
             const result = await adminService.getBatches();
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -83,7 +100,7 @@ class AdminController {
     async getBatchById(req, res, next) {
         try {
             const result = await adminService.getBatchById(req.params.id);
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -95,27 +112,7 @@ class AdminController {
                 req.body,
             );
 
-            res.status(200).json(result);
-        } catch (error) {
-            next(error);
-        }
-    }
-    async deleteBatch(req, res, next) {
-        try {
-            const result = await adminService.deleteBatch(req.params.id);
-            res.status(200).json(result);
-        } catch (error) {
-            next(error);
-        }
-    }
-    async updateBatchStatus(req, res, next) {
-        try {
-            const result = await adminService.updateBatchStatus(
-                req.params.id,
-                req.body.active,
-            );
-
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -123,23 +120,27 @@ class AdminController {
     async closeBatch(req, res, next) {
         try {
             const result = await adminService.closeBatch(req.params.id);
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
     }
     async generateRecruiterLink(req, res, next) {
         try {
-            const result = await adminService.generateRecruiterLink(req.params.id);
-            res.status(200).json(result);
+            const result = await adminService.generateRecruiterLink(req.params.id, req.user.id);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
     }
     async revokeRecruiterLink(req, res, next) {
         try {
-            const result = await adminService.revokeRecruiterLink(req.params.id);
-            res.status(200).json(result);
+            await adminService.revokeRecruiterLink(
+                req.params.id,
+                req.user.id,
+            );
+
+            return res.status(204).send();
         } catch (error) {
             next(error);
         }
@@ -147,7 +148,7 @@ class AdminController {
     async getBatchConfig(req, res, next) {
         try {
             const result = await adminService.getBatchConfig(req.params.batchId);
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -157,9 +158,10 @@ class AdminController {
             const result = await adminService.updateBatchConfig(
                 req.params.batchId,
                 req.body,
+                req.user.id,
             );
 
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -167,7 +169,7 @@ class AdminController {
     async getDashboard(req, res, next) {
         try {
             const result = await adminService.getDashboard();
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }
@@ -179,7 +181,7 @@ class AdminController {
                 req.body.teacherIds,
             );
 
-            res.status(200).json(result);
+            sendSuccess(res, 200, result);
         } catch (error) {
             next(error);
         }

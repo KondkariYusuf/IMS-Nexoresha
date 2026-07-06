@@ -16,3 +16,6 @@ export { default as QuizResult } from './quizResult.model.js';
 export { default as StudentLedger } from './studentLedger.model.js';
 export { default as StudentMetrics } from './studentMetrics.model.js';
 export { default as BatchConfig } from './batchConfig.model.js';
+export { default as AuditLog } from "./auditLog.model.js";
+
+// export { default as AuditLog } from "./auditLog.model.js";

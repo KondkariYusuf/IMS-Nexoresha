@@ -1,20 +1,34 @@
-export const validateCreateInstructor = (req, res, next) => {
+import { CustomError } from "../../utils/customError.js";
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+export const validateCreateInstructor = (req, _res, next) => {
   const { name, email, password, designation } = req.body;
 
   if (!name) {
-    return res.status(400).json({ success: false, message: "Name is required" });
+    throw new CustomError("Name is required", 400);
   }
 
   if (!email) {
-    return res.status(400).json({ success: false, message: "Email is required" });
+    throw new CustomError("Email is required", 400);
+  }
+
+  if (!isValidEmail(email)) {
+    throw new CustomError("Invalid email format", 400);
   }
 
   if (!password) {
-    return res.status(400).json({ success: false, message: "Password is required" });
+    throw new CustomError("Password is required", 400);
+  }
+
+  if (password.length < 6) {
+    throw new CustomError("Password must be at least 6 characters", 400);
   }
 
   if (!designation) {
-    return res.status(400).json({ success: false, message: "Designation is required" });
+    throw new CustomError("Designation is required", 400);
   }
 
   next();
@@ -24,14 +38,11 @@ export const validateUpdateInstructor = (_req, _res, next) => {
   next();
 };
 
-export const validateInstructorStatus = (req, res, next) => {
+export const validateInstructorStatus = (req, _res, next) => {
   const { active } = req.body;
 
   if (typeof active !== "boolean") {
-    return res.status(400).json({
-      success: false,
-      message: "Active must be true or false",
-    });
+    throw new CustomError("Active must be true or false", 400);
   }
 
   next();

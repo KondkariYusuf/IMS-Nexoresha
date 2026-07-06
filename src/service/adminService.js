@@ -4,34 +4,85 @@ import {
     Batch,
     BatchConfig,
     Instructor,
+    Role,
+    StudentMetrics,
 } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
 import { v4 as uuidv4 } from 'uuid';
 import bcrypt from 'bcrypt';
+import marksService from './marksService.js';
+import auditService from './auditService.js';
 
 class AdminService {
-    async createStudent(studentData) {
-        const { name, email, password, batchId } = studentData;
+    async getOrCreateRole(roleName) {
+        let role = await Role.findOne({ name: roleName });
 
-        // Check if email already exists
-        const existingUser = await User.findOne({ email });
+        if (!role) {
+            role = await Role.create({
+                name: roleName,
+                description: `${roleName} role`,
+                permissionIds: [],
+            });
+        }
+
+        return role;
+    }
+
+    async createStudent(studentData) {
+        const {
+            name,
+            email,
+            password,
+            mobileNo,
+            batchId,
+            enrollementNo,
+            dob,
+            educationQualification,
+            gender,
+            instituteName,
+        } = studentData;
+
+        if (batchId) {
+            const batch = await Batch.findById(batchId);
+            if (!batch) {
+                throw new CustomError('Batch not found', 404);
+            }
+        }
+
+        const existingUser = await User.findOne({
+            $or: [{ email }, { mobileNo }],
+        });
 
         if (existingUser) {
-            throw new CustomError('Email already exists', 400);
+            throw new CustomError('Email or mobile number already exists', 409);
         }
+
+        const existingStudent = await Student.findOne({ enrollementNo });
+
+        if (existingStudent) {
+            throw new CustomError('Enrollment number already exists', 409);
+        }
+
+        const studentRole = await this.getOrCreateRole('student');
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const user = await User.create({
             name,
             email,
             password: hashedPassword,
-            mobileNo: `${Date.now()}`,
+            mobileNo,
+            roleId: studentRole._id,
             profileStatus: 'Active',
         });
-        // Create Student
+
         const student = await Student.create({
             userId: user._id,
             batchId: batchId || null,
+            enrollementNo,
+            dob,
+            educationQualification,
+            gender,
+            instituteName,
         });
 
         const { password: _, ...safeUser } = user.toObject();
@@ -41,13 +92,67 @@ class AdminService {
             user: safeUser,
             student,
         };
-
     }
-    async getStudents() {
-        const students = await Student.find().populate({
+
+    async bulkCreateStudents(studentsData) {
+        if (!Array.isArray(studentsData) || studentsData.length === 0) {
+            throw new CustomError('students must be a non-empty array', 400);
+        }
+
+        const createdStudents = [];
+        const errors = [];
+
+        for (let index = 0; index < studentsData.length; index += 1) {
+            try {
+                const result = await this.createStudent(studentsData[index]);
+
+                createdStudents.push({
+                    index,
+                    user: result.user,
+                    student: result.student,
+                });
+            } catch (error) {
+                errors.push({
+                    index,
+                    email: studentsData[index]?.email,
+                    enrollementNo: studentsData[index]?.enrollementNo,
+                    message: error.message,
+                });
+            }
+        }
+
+        return {
+            message: 'Bulk student creation completed',
+            createdCount: createdStudents.length,
+            errorCount: errors.length,
+            createdStudents,
+            errors,
+        };
+    }
+
+    async getStudents(query = {}) {
+        const { batchId, active } = query;
+
+        const studentFilter = {};
+        const userFilter = {};
+
+        if (batchId) {
+            studentFilter.batchId = batchId;
+        }
+
+        if (active !== undefined) {
+            userFilter.profileStatus = active === 'true' ? 'Active' : 'Inactive';
+        }
+
+        let students = await Student.find(studentFilter).populate({
             path: 'userId',
             select: '-password',
+            match: userFilter,
         });
+
+        if (active !== undefined) {
+            students = students.filter((student) => student.userId);
+        }
 
         return {
             message: 'Students fetched successfully',
@@ -69,8 +174,9 @@ class AdminService {
             student,
         };
     }
+
     async updateStudent(studentId, studentData) {
-        const student = await Student.findById(studentId);
+        const student = await Student.findOne({ _id: studentId });
 
         if (!student) {
             throw new CustomError('Student not found', 404);
@@ -93,54 +199,59 @@ class AdminService {
             });
 
             if (existingUser) {
-                throw new CustomError('Email already exists', 400);
+                throw new CustomError('Email already exists', 409);
             }
 
             user.email = studentData.email;
         }
 
-        if (studentData.batchId !== undefined) {
-            student.batchId = studentData.batchId;
+        if (studentData.mobileNo) {
+            const existingMobile = await User.findOne({
+                mobileNo: studentData.mobileNo,
+                _id: { $ne: user._id },
+            });
+
+            if (existingMobile) {
+                throw new CustomError('Mobile number already exists', 409);
+            }
+
+            user.mobileNo = studentData.mobileNo;
         }
+
+        if (studentData.enrollementNo) {
+            const existingStudent = await Student.findOne({
+                enrollementNo: studentData.enrollementNo,
+                _id: { $ne: student._id },
+            });
+
+            if (existingStudent) {
+                throw new CustomError('Enrollment number already exists', 409);
+            }
+
+            student.enrollementNo = studentData.enrollementNo;
+        }
+
+        if (studentData.dob !== undefined) student.dob = studentData.dob;
+        if (studentData.educationQualification !== undefined) student.educationQualification = studentData.educationQualification;
+        if (studentData.gender !== undefined) student.gender = studentData.gender;
+        if (studentData.instituteName !== undefined) student.instituteName = studentData.instituteName;
+        if (studentData.gitHubUrl !== undefined) student.gitHubUrl = studentData.gitHubUrl;
+        if (studentData.linkedInUrl !== undefined) student.linkedInUrl = studentData.linkedInUrl;
 
         await user.save();
         await student.save();
 
         return {
             message: 'Student updated successfully',
-            student: await Student.findById(studentId).populate({
+            student: await Student.findOne({ _id: studentId }).populate({
                 path: 'userId',
                 select: '-password',
             }),
         };
     }
+
     async updateStudentStatus(studentId, profileStatus) {
-        const student = await Student.findById(studentId);
-
-        if (!student) {
-            throw new CustomError('Student not found', 404);
-        }
-
-        const user = await User.findById(student.userId);
-
-        if (!user) {
-            throw new CustomError('User not found', 404);
-        }
-
-        user.profileStatus = profileStatus;
-
-        await user.save();
-
-        return {
-            message: `Student ${profileStatus.toLowerCase()} successfully`,
-            student: await Student.findById(studentId).populate({
-                path: 'userId',
-                select: '-password',
-            }),
-        };
-    }
-    async updateStudentStatus(studentId, profileStatus) {
-        const student = await Student.findById(studentId);
+        const student = await Student.findOne({ _id: studentId });
 
         if (!student) {
             throw new CustomError('Student not found', 404);
@@ -158,19 +269,67 @@ class AdminService {
             throw new CustomError('Invalid profile status', 400);
         }
 
-        // Then update the status
         user.profileStatus = profileStatus;
-
         await user.save();
 
         return {
             message: `Student ${profileStatus.toLowerCase()} successfully`,
-            student: await Student.findById(studentId).populate({
+            student: await Student.findOne({ _id: studentId }).populate({
                 path: 'userId',
                 select: '-password',
             }),
         };
     }
+
+    async moveStudentToBatch(studentId, newBatchId) {
+        const student = await Student.findOne({ _id: studentId });
+
+        if (!student) {
+            throw new CustomError('Student not found', 404);
+        }
+
+        const batch = await Batch.findById(newBatchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        student.batchId = newBatchId;
+        await student.save();
+
+        return {
+            message: 'Student moved to batch successfully',
+            student: await Student.findOne({ _id: studentId }).populate({
+                path: 'userId',
+                select: '-password',
+            }),
+        };
+    }
+
+    async validateTeachersExist(teacherIds = []) {
+        if (!Array.isArray(teacherIds) || teacherIds.length === 0) return;
+
+        const teachers = await Instructor.find({
+            _id: { $in: teacherIds },
+        });
+
+        if (teachers.length !== teacherIds.length) {
+            throw new CustomError('One or more teachers not found', 404);
+        }
+    }
+
+    async validateStudentsExist(studentIds = []) {
+        if (!Array.isArray(studentIds) || studentIds.length === 0) return;
+
+        const students = await Student.find({
+            _id: { $in: studentIds },
+        });
+
+        if (students.length !== studentIds.length) {
+            throw new CustomError('One or more students not found', 404);
+        }
+    }
+
     async createBatch(batchData) {
         const {
             name,
@@ -184,8 +343,11 @@ class AdminService {
         const existingBatch = await Batch.findOne({ name });
 
         if (existingBatch) {
-            throw new CustomError('Batch already exists', 400);
+            throw new CustomError('Batch already exists', 409);
         }
+
+        await this.validateTeachersExist(teacherIds || []);
+        await this.validateStudentsExist(studentIds || []);
 
         const batch = await Batch.create({
             name,
@@ -201,6 +363,7 @@ class AdminService {
             batch,
         };
     }
+
     async getBatches() {
         const batches = await Batch.find();
 
@@ -209,6 +372,7 @@ class AdminService {
             batches,
         };
     }
+
     async getBatchById(batchId) {
         const batch = await Batch.findById(batchId);
 
@@ -221,11 +385,20 @@ class AdminService {
             batch,
         };
     }
+
     async updateBatch(batchId, batchData) {
         const batch = await Batch.findById(batchId);
 
         if (!batch) {
             throw new CustomError('Batch not found', 404);
+        }
+
+        if (batchData.teacherIds !== undefined) {
+            await this.validateTeachersExist(batchData.teacherIds);
+        }
+
+        if (batchData.studentIds !== undefined) {
+            await this.validateStudentsExist(batchData.studentIds);
         }
 
         if (batchData.name) batch.name = batchData.name;
@@ -242,40 +415,7 @@ class AdminService {
             batch,
         };
     }
-    async deleteBatch(batchId) {
-        const batch = await Batch.findById(batchId);
 
-        if (!batch) {
-            throw new CustomError('Batch not found', 404);
-        }
-
-        await batch.deleteOne();
-
-        return {
-            message: 'Batch deleted successfully',
-        };
-    }
-    async updateBatchStatus(batchId, status) {
-        const allowedStatus = ['upcoming', 'ongoing', 'completed'];
-
-        if (!allowedStatus.includes(status)) {
-            throw new CustomError('Invalid batch status', 400);
-        }
-
-        const batch = await Batch.findById(batchId);
-
-        if (!batch) {
-            throw new CustomError('Batch not found', 404);
-        }
-
-        batch.status = status;
-        await batch.save();
-
-        return {
-            message: 'Batch status updated successfully',
-            batch,
-        };
-    }
     async closeBatch(batchId) {
         const batch = await Batch.findById(batchId);
 
@@ -284,7 +424,6 @@ class AdminService {
         }
 
         batch.status = 'completed';
-
         await batch.save();
 
         return {
@@ -292,7 +431,8 @@ class AdminService {
             batch,
         };
     }
-    async generateRecruiterLink(batchId) {
+
+    async generateRecruiterLink(batchId, adminId) {
         const batch = await Batch.findById(batchId);
 
         if (!batch) {
@@ -304,27 +444,60 @@ class AdminService {
 
         await batch.save();
 
+        await auditService.createAuditLog({
+            adminId,
+            actionType: 'RECRUITER_LINK_GENERATED',
+            entityType: 'batch',
+            entityId: batchId,
+            oldValue: null,
+            newValue: {
+                recruiterUuid: batch.recruiterUuid,
+                recruiterLinkActive: true,
+            },
+            reason: 'Recruiter link generated by admin',
+        });
+
         return {
             message: 'Recruiter link generated successfully',
             recruiterUuid: batch.recruiterUuid,
         };
     }
-    async revokeRecruiterLink(batchId) {
+
+    async revokeRecruiterLink(batchId, adminId) {
         const batch = await Batch.findById(batchId);
 
         if (!batch) {
             throw new CustomError('Batch not found', 404);
         }
 
+        const oldValue = {
+            recruiterUuid: batch.recruiterUuid,
+            recruiterLinkActive: batch.recruiterLinkActive,
+        };
+
         batch.recruiterUuid = null;
         batch.recruiterLinkActive = false;
 
         await batch.save();
 
+        await auditService.createAuditLog({
+            adminId,
+            actionType: 'RECRUITER_LINK_REVOKED',
+            entityType: 'batch',
+            entityId: batchId,
+            oldValue,
+            newValue: {
+                recruiterUuid: null,
+                recruiterLinkActive: false,
+            },
+            reason: 'Recruiter link revoked by admin',
+        });
+
         return {
             message: 'Recruiter link revoked successfully',
         };
     }
+
     async getBatchConfig(batchId) {
         const batch = await Batch.findById(batchId);
 
@@ -343,12 +516,15 @@ class AdminService {
             batchConfig,
         };
     }
-    async updateBatchConfig(batchId, configData) {
+
+    async updateBatchConfig(batchId, configData, adminId) {
         const batch = await Batch.findById(batchId);
 
         if (!batch) {
             throw new CustomError('Batch not found', 404);
         }
+
+        const previousConfig = await BatchConfig.findOne({ batchId }).lean();
 
         const {
             baseScore,
@@ -383,32 +559,49 @@ class AdminService {
             },
         );
 
+        await auditService.createAuditLog({
+            adminId,
+            actionType: 'BATCH_CONFIG_UPDATED',
+            entityType: 'batch',
+            entityId: batchId,
+            oldValue: previousConfig,
+            newValue: batchConfig,
+            reason,
+        });
+
+        await marksService.recalculateBatch(batchId, reason, adminId);
+
         return {
             message: 'Batch config updated successfully',
             batchConfig,
         };
     }
+
     async getDashboard() {
         const totalStudents = await Student.countDocuments();
-
         const totalTeachers = await Instructor.countDocuments();
-
         const totalBatches = await Batch.countDocuments();
 
-        const topScorers = await Student.find()
+        const topMetrics = await StudentMetrics.find()
             .sort({ totalPoints: -1 })
             .limit(5)
             .populate({
-                path: 'userId',
-                select: 'name email',
+                path: 'studentId',
+                populate: {
+                    path: 'userId',
+                    select: 'name email',
+                },
             });
 
-        const bottomScorers = await Student.find()
+        const bottomMetrics = await StudentMetrics.find()
             .sort({ totalPoints: 1 })
             .limit(5)
             .populate({
-                path: 'userId',
-                select: 'name email',
+                path: 'studentId',
+                populate: {
+                    path: 'userId',
+                    select: 'name email',
+                },
             });
 
         return {
@@ -417,11 +610,12 @@ class AdminService {
                 totalStudents,
                 totalTeachers,
                 totalBatches,
-                topScorers,
-                bottomScorers,
+                topScorers: topMetrics,
+                bottomScorers: bottomMetrics,
             },
         };
     }
+
     async assignTeachersToBatch(batchId, teacherIds) {
         const batch = await Batch.findById(batchId);
 
@@ -433,13 +627,7 @@ class AdminService {
             throw new CustomError('teacherIds must be an array', 400);
         }
 
-        const teachers = await Instructor.find({
-            _id: { $in: teacherIds },
-        });
-
-        if (teachers.length !== teacherIds.length) {
-            throw new CustomError('One or more teachers not found', 404);
-        }
+        await this.validateTeachersExist(teacherIds);
 
         batch.teacherIds = teacherIds;
         await batch.save();
@@ -455,4 +643,5 @@ class AdminService {
         };
     }
 }
+
 export default new AdminService();
