@@ -1,4 +1,4 @@
-import { Topic, Course, Session } from '../models/index.js';
+import { Topic, Course, Session, Instructor, Batch } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
 import { cloudinary, isCloudinaryConfigured } from '../../config/cloudinary.js';
 import fs from 'fs/promises';
@@ -46,14 +46,28 @@ async function deleteLocalFile(filePath) {
  * Create a new course. Prevents duplicates.
  */
 export async function createCourse(courseData) {
-  const { name, instructorIds } = courseData;
+  const { name, instructorIds, batchId } = courseData;
   
   const existingCourse = await Course.findOne({ name: name.trim() });
   if (existingCourse) {
     throw new CustomError('A course with this name already exists', 409);
   }
 
-  const course = new Course({ name: name.trim(), instructorIds });
+  // Verify that the batch ID exists
+  const batchExists = await Batch.exists({ _id: batchId });
+  if (!batchExists) {
+    throw new CustomError('The specified Batch ID does not exist', 400);
+  }
+
+  // Verify that all instructor IDs correspond to valid Instructors
+  if (instructorIds && instructorIds.length > 0) {
+    const existingCount = await Instructor.countDocuments({ _id: { $in: instructorIds } });
+    if (existingCount !== instructorIds.length) {
+      throw new CustomError('One or more instructor IDs do not reference valid instructors', 400);
+    }
+  }
+
+  const course = new Course({ name: name.trim(), instructorIds, batchId });
   await course.save();
   return course;
 }
@@ -76,6 +90,22 @@ export async function updateCourse(courseId, updateData) {
       throw new CustomError('A course with this name already exists', 409);
     }
     updateData.name = updateData.name.trim();
+  }
+
+  // Verify that the batch ID exists if provided
+  if (updateData.batchId) {
+    const batchExists = await Batch.exists({ _id: updateData.batchId });
+    if (!batchExists) {
+      throw new CustomError('The specified Batch ID does not exist', 400);
+    }
+  }
+
+  // Verify that all instructor IDs correspond to valid Instructors if provided
+  if (updateData.instructorIds && updateData.instructorIds.length > 0) {
+    const existingCount = await Instructor.countDocuments({ _id: { $in: updateData.instructorIds } });
+    if (existingCount !== updateData.instructorIds.length) {
+      throw new CustomError('One or more instructor IDs do not reference valid instructors', 400);
+    }
   }
 
   Object.assign(course, updateData);

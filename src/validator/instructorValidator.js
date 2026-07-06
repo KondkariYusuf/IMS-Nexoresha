@@ -20,6 +20,12 @@ export const createCourseValidator = [
     .withMessage('Course name is required')
     .isLength({ max: 200 })
     .withMessage('Course name cannot exceed 200 characters'),
+  body('batchId')
+    .trim()
+    .notEmpty()
+    .withMessage('batchId is required')
+    .isString()
+    .withMessage('batchId must be a string'),
   body('instructorIds')
     .optional()
     .isArray()
