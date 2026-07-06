@@ -9,11 +9,6 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
-// Ensure the local storage directory exists
-const uploadDir = 'src/uploads/notes';
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
 
 // Multer storage setup with Cloudinary fallback
 let storage;
@@ -26,15 +21,7 @@ if (isCloudinaryConfigured) {
     },
   });
 } else {
-  storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-      cb(null, uploadDir);
-    },
-    filename: function (req, file, cb) {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      cb(null, uniqueSuffix + path.extname(file.originalname));
-    },
-  });
+  storage = multer.memoryStorage();
 }
 
 // File filter to restrict uploads to PDF, MD, and DOCX files
@@ -111,8 +98,11 @@ export const getTopics = asyncHandler(async (req, res) => {
  * POST /api/v1/instructor/topics
  */
 export const createTopic = asyncHandler(async (req, res) => {
+  if (req.files && req.files.length > 0 && !isCloudinaryConfigured) {
+    throw new CustomError('Cloud storage service is currently unavailable. Upload blocked.', 503);
+  }
   // Extract files path from multer files upload array if present
-  const notesFiles = req.files ? req.files.map((file) => file.path.replace(/\\/g, '/')) : [];
+  const notesFiles = req.files ? req.files.map((file) => (file.path ? file.path.replace(/\\/g, '/') : '')) : [];
 
   // Parse learningObjectives if sent as JSON string or handle if already array
   let learningObjectives = req.body.learningObjectives;
@@ -197,11 +187,14 @@ export const reorderTopics = asyncHandler(async (req, res) => {
  * POST /api/v1/instructor/topics/:id/notes
  */
 export const uploadNotes = asyncHandler(async (req, res) => {
+  if (!isCloudinaryConfigured) {
+    throw new CustomError('Cloud storage service is currently unavailable. Upload blocked.', 503);
+  }
   if (!req.files || req.files.length === 0) {
     throw new CustomError('No notes files uploaded', 400);
   }
 
-  const filePaths = req.files.map((file) => file.path.replace(/\\/g, '/'));
+  const filePaths = req.files.map((file) => (file.path ? file.path.replace(/\\/g, '/') : ''));
   const topic = await curriculumService.addTopicNotes(req.params.id, filePaths);
 
   res.status(200).json({
@@ -320,15 +313,7 @@ if (isCloudinaryConfigured) {
     },
   });
 } else {
-  photoStorage = multer.diskStorage({
-    destination: function (req, file, cb) {
-      cb(null, photoUploadDir);
-    },
-    filename: function (req, file, cb) {
-      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-      cb(null, 'profile-' + uniqueSuffix + path.extname(file.originalname));
-    },
-  });
+  photoStorage = multer.memoryStorage();
 }
 
 const photoFileFilter = (req, file, cb) => {
@@ -364,7 +349,10 @@ export const getProfile = asyncHandler(async (req, res) => {
 export const updateProfile = asyncHandler(async (req, res) => {
   let photoPath;
   if (req.file) {
-    photoPath = isCloudinaryConfigured ? req.file.path : `/uploads/instructors/${req.file.filename}`;
+    if (!isCloudinaryConfigured) {
+      throw new CustomError('Cloud storage service is currently unavailable. Upload blocked.', 503);
+    }
+    photoPath = req.file.path;
   }
   const updatedProfile = await profileService.updateInstructorProfile(req.user.id, req.body, photoPath);
   res.status(200).json({
