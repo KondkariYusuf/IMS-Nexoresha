@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { codeReviewQueue } from '../queues/codeReviewQueue.js';
 import { AssignmentSubmission, AssignmentResult, Assignment, Student } from '../models/index.js';
 import { createNotification, sendEmail, notifyAdmins } from './notificationService.js';
@@ -112,10 +113,8 @@ export async function callCodeReviewApi(githubUrl, apiUrl) {
     if (
       data === null ||
       typeof data !== 'object' ||
-      typeof data.marksObtained !== 'number' ||
-      Number.isNaN(data.marksObtained) ||
-      typeof data.codeQualityScore !== 'number' ||
-      Number.isNaN(data.codeQualityScore)
+      typeof data.score !== 'number' ||
+      Number.isNaN(data.score)
     ) {
       throw new Error('Invalid API response format');
     }
@@ -148,8 +147,8 @@ export async function handleReviewResult(submissionId, result) {
   const assignment = await Assignment.findById(submission.assignmentId);
   
   // Extract and clamp scores
-  const marksObtained = Math.max(0, Math.min(TOTAL_MARKS, Number(result.marksObtained) || 0));
-  const codeQualityScore = Math.max(0, Math.min(TOTAL_MARKS, Number(result.codeQualityScore) || 0));
+  const marksObtained = Math.max(0, Math.min(TOTAL_MARKS, Number(result.score) || 0));
+  const codeQualityScore = 0;
   const feedback = result.feedback || '';
 
   // 3. Set points = 0 if submission was late, else points = marksObtained
@@ -164,42 +163,57 @@ export async function handleReviewResult(submissionId, result) {
   // 4. Pass/Fail status
   const passFailResult = marksObtained >= PASSING_MARKS ? 'pass' : 'failed';
 
-  // 5. Create AssignmentResult document
-  const assignmentResult = new AssignmentResult({
-    submissionId,
-    totalMarks: TOTAL_MARKS,
-    marksObtained,
-    percentage,
-    points,
-    bonusPoints,
-    totalPoints,
-    feedback,
-    codeQualityScore,
-    evalAt: new Date(),
-    result: passFailResult
-  });
-  await assignmentResult.save();
-
-  // 6. Apply points to student ledger via fallback pointsService
   let ledgerEntry;
-  try {
-    ledgerEntry = await applyPointsEvent({
-      studentId: submission.studentId,
-      sourceType: 'assignment',
-      sourceId: assignmentResult._id,
-      points,
-      description: `Awarded ${points} points for assignment submission ${submissionId}`
-    });
-  } catch (ledgerError) {
-    console.error(`[CodeReviewService] Error writing ledger event: ${ledgerError.message}`);
-  }
+  let assignmentResult;
 
-  // 7. Update Submission reviewStatus & ledgerEventId
-  submission.reviewStatus = 'completed';
-  if (ledgerEntry) {
-    submission.ledgerEventId = ledgerEntry._id;
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      // 5. Create AssignmentResult document
+      assignmentResult = new AssignmentResult({
+        submissionId,
+        totalMarks: TOTAL_MARKS,
+        marksObtained,
+        percentage,
+        points,
+        bonusPoints,
+        totalPoints,
+        feedback,
+        codeQualityScore,
+        evalAt: new Date(),
+        result: passFailResult
+      });
+      await assignmentResult.save({ session });
+
+      // 6. Apply points to student ledger via fallback pointsService
+      try {
+        ledgerEntry = await applyPointsEvent({
+          studentId: submission.studentId,
+          sourceType: 'assignment',
+          sourceId: assignmentResult._id,
+          points,
+          description: `Awarded ${points} points for assignment submission ${submissionId}`,
+          session
+        });
+      } catch (ledgerError) {
+        console.error(`[CodeReviewService] Error writing ledger event: ${ledgerError.message}`);
+        throw ledgerError; // Rethrow to abort the transaction
+      }
+
+      // 7. Update Submission reviewStatus & ledgerEventId
+      submission.reviewStatus = 'completed';
+      if (ledgerEntry) {
+        submission.ledgerEventId = ledgerEntry._id;
+      }
+      await submission.save({ session });
+    });
+  } catch (error) {
+    console.error(`[CodeReviewService] Transaction aborted for submission ${submissionId}: ${error.message}`);
+    throw error;
+  } finally {
+    await session.endSession();
   }
-  await submission.save();
 
   // 8. Notify student (In-app + Email)
   try {
