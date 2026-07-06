@@ -352,14 +352,14 @@ export const getProfile = asyncHandler(async (req, res) => {
  * PUT /api/v1/instructor/profile
  */
 export const updateProfile = asyncHandler(async (req, res) => {
-  let photoPath;
+  let profileImagePath;
   if (req.file) {
     if (!isCloudinaryConfigured) {
       throw new CustomError('Cloud storage service is currently unavailable. Upload blocked.', 503);
     }
-    photoPath = req.file.path;
+    profileImagePath = req.file.path;
   }
-  const updatedProfile = await profileService.updateInstructorProfile(req.user.id, req.body, photoPath);
+  const updatedProfile = await profileService.updateInstructorProfile(req.user.id, req.body, profileImagePath);
   res.status(200).json({
     success: true,
     message: 'Profile updated successfully',

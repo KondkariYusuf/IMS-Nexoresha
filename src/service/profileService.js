@@ -18,7 +18,7 @@ export async function getInstructorProfile(userId) {
 /**
  * Update instructor profile properties (designation, bio, photo, linkedIn) and associated User's name.
  */
-export async function updateInstructorProfile(userId, updateData, photoPath) {
+export async function updateInstructorProfile(userId, updateData, profileImagePath) {
   const instructor = await Instructor.findOne({ userId });
   if (!instructor) {
     throw new CustomError('Instructor profile not found', 404);
@@ -33,7 +33,7 @@ export async function updateInstructorProfile(userId, updateData, photoPath) {
   if (designation !== undefined) instructor.designation = designation;
   if (bio !== undefined) instructor.bio = bio;
   if (linkedInUrl !== undefined) instructor.linkedInUrl = linkedInUrl;
-  if (photoPath !== undefined) instructor.photo = photoPath;
+  if (profileImagePath !== undefined) instructor.profileImage = profileImagePath;
 
   await instructor.save();
 

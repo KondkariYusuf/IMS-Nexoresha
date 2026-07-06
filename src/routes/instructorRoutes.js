@@ -118,7 +118,7 @@ router.delete(
 router.get('/profile', instructorController.getProfile);
 router.put(
   '/profile',
-  instructorController.uploadPhoto.single('photo'),
+  instructorController.uploadPhoto.single('profileImage'),
   instructorValidator.updateProfileValidator,
   instructorController.updateProfile
 );

@@ -8,7 +8,7 @@ const instructorSchema = new mongoose.Schema(
     linkedInUrl: { type: String, trim: true },
     designation: { type: String, trim: true },
     bio: { type: String, trim: true },
-    photo: { type: String, trim: true },
+    profileImage: { type: String, trim: true },
     ratingSum: { type: Number, default: 0 },
     ratingCount: { type: Number, default: 0 },
   },
