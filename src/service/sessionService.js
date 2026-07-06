@@ -235,6 +235,10 @@ export async function transitionSessionStatus(sessionId, nextStatus) {
     await notificationService.notifyBatch(session.batchId, 'session_cancelled', `The session "${session.title}" has been cancelled`, {
       sessionId: session._id,
     });
+  } else if (nextStatus === 'postponed') {
+    await notificationService.notifyBatch(session.batchId, 'session_postponed', `The session "${session.title}" has been postponed`, {
+      sessionId: session._id,
+    });
   }
 
   session.status = nextStatus;

@@ -369,8 +369,8 @@ export const transitionStatusValidator = [
     .trim()
     .notEmpty()
     .withMessage('status is required')
-    .isIn(['In Progress', 'completed', 'cancelled'])
-    .withMessage('status must be one of: In Progress, completed, cancelled'),
+    .isIn(['In Progress', 'completed', 'cancelled', 'postponed', 'scheduled'])
+    .withMessage('status must be one of: In Progress, completed, cancelled, postponed, scheduled'),
   handleValidationErrors,
 ];
 
