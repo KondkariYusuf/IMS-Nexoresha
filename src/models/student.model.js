@@ -16,6 +16,7 @@ const studentSchema = new mongoose.Schema(
     currentStreak: { type: Number, default: 0 },
     maxStreak: { type: Number, default: 0 },
     totalPoints: { type: Number, default: 0 },
+    baseScore: { type: Number, default: 0 },
     gitHubUrl: { type: String, trim: true },
     linkedInUrl: { type: String, trim: true },
     enrolledCourseIds: [{ type: String, ref: 'Course' }],
