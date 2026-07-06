@@ -422,5 +422,37 @@ class AdminService {
             },
         };
     }
+    async assignTeachersToBatch(batchId, teacherIds) {
+        const batch = await Batch.findById(batchId);
+
+        if (!batch) {
+            throw new CustomError('Batch not found', 404);
+        }
+
+        if (!Array.isArray(teacherIds)) {
+            throw new CustomError('teacherIds must be an array', 400);
+        }
+
+        const teachers = await Instructor.find({
+            _id: { $in: teacherIds },
+        });
+
+        if (teachers.length !== teacherIds.length) {
+            throw new CustomError('One or more teachers not found', 404);
+        }
+
+        batch.teacherIds = teacherIds;
+        await batch.save();
+
+        await Instructor.updateMany(
+            { _id: { $in: teacherIds } },
+            { $addToSet: { assignedBatches: batchId } },
+        );
+
+        return {
+            message: 'Teachers assigned to batch successfully',
+            batch,
+        };
+    }
 }
 export default new AdminService();

@@ -112,7 +112,7 @@ class AdminController {
         try {
             const result = await adminService.updateBatchStatus(
                 req.params.id,
-                req.body.status,
+                req.body.active,
             );
 
             res.status(200).json(result);
@@ -167,6 +167,18 @@ class AdminController {
     async getDashboard(req, res, next) {
         try {
             const result = await adminService.getDashboard();
+            res.status(200).json(result);
+        } catch (error) {
+            next(error);
+        }
+    }
+    async assignTeachersToBatch(req, res, next) {
+        try {
+            const result = await adminService.assignTeachersToBatch(
+                req.params.id,
+                req.body.teacherIds,
+            );
+
             res.status(200).json(result);
         } catch (error) {
             next(error);

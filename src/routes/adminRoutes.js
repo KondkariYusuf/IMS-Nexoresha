@@ -83,4 +83,8 @@ router.get(
     '/dashboard',
     adminController.getDashboard,
 );
+router.patch(
+    "/batches/:id/teachers",
+    adminController.assignTeachersToBatch,
+);
 export default router;
