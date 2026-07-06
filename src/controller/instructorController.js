@@ -63,7 +63,12 @@ async function getInstructorId(userId) {
  * POST /api/v1/instructor/courses
  */
 export const createCourse = asyncHandler(async (req, res) => {
-  const course = await curriculumService.createCourse(req.body);
+  const instructorId = await getInstructorId(req.user.id);
+  const courseData = {
+    ...req.body,
+    instructorIds: [...new Set([...(req.body.instructorIds || []), instructorId])],
+  };
+  const course = await curriculumService.createCourse(courseData);
   res.status(201).json({
     success: true,
     message: 'Course created successfully',
