@@ -7,7 +7,9 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js"
+    "dev": "node --watch src/server.js",
+    "seed": "node seed.js",
+    "seed:reset": "node seed.js --reset"
   },
   "dependencies": {
     "cors": "^2.8.5",
@@ -16,6 +18,7 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
     "mongoose": "^8.15.1",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "redis": "^6.1.0"
   }
 }

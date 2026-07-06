@@ -1,8 +1,12 @@
 import mongoose from 'mongoose';
 
-export async function connectDatabase(uri) {
+export function resolveDatabaseUri() {
+  return process.env.DB_URI || process.env.MONGO_URL || process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/ims-nexoresha';
+}
+
+export async function connectDatabase(uri = resolveDatabaseUri()) {
   if (!uri) {
-    throw new Error('DB_URI is required');
+    throw new Error('A database URI is required. Set DB_URI or MONGO_URL.');
   }
 
   mongoose.set('strictQuery', true);
