@@ -233,7 +233,7 @@ export async function handleReviewResult(submissionId, result) {
         await sendEmail(
           studentEmail,
           `[IMS] Code Review Completed - Score: ${marksObtained}/${TOTAL_MARKS}`,
-          `<p>${message}</p><p><strong>Feedback:</strong> ${feedback}</p><p><strong>Code Quality Score:</strong> ${codeQualityScore}/${TOTAL_MARKS}</p>`
+          `<p>${message}</p><p><strong>Feedback:</strong> ${feedback}</p>`
         );
       }
     }
