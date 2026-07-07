@@ -1,115 +1,78 @@
-export async function getBatchOverviewService(batchUuid) {
-    return {
-        success: true,
-        batch: {
-            id: batchUuid,
-            name: "Batch 1",
-            totalStudents: 4,
-            activeStudents: 4,
-            completedStudents: 0
-        }
-    };
-}
+import { Student, Batch } from '../models/index.js';
+import * as metricsService from './metricsService.js';
+import { CustomError } from '../utils/customError.js';
 
-export async function getBatchStudentsService(batchUuid) {
-  const students = [
-    {
-      id: 'student-001',
-      name: 'Aisha Khan',
-      email: 'aisha@example.com',
-      status: 'active',
-      batchUuid: 'batch-001',
-    },
-    {
-      id: 'student-002',
-      name: 'Bilal Ahmed',
-      email: 'bilal@example.com',
-      status: 'active',
-      batchUuid: 'batch-001',
-    },
-    {
-      id: 'student-003',
-      name: 'Sara Ali',
-      email: 'sara@example.com',
-      status: 'active',
-      batchUuid: 'batch-002',
-    },
-    {
-      id: 'student-004',
-      name: 'John Doe',
-      email: 'john@example.com',
-      status: 'completed',
-      batchUuid: 'batch-002',
-    },
-  ];
+const studentPopulateForRecruiter = [
+  { path: 'userId', select: 'name email profileStatus' },
+  { path: 'enrolledCourseIds', select: 'name' },
+];
+
+export async function getBatchOverviewService(batchUuid) {
+  const batch = await Batch.findById(batchUuid).select('_id name').lean();
+  if (!batch) {
+    throw new CustomError('Batch not found', 404);
+  }
+
+  const totalStudents = await Student.countDocuments({ batchId: batchUuid });
+  const activeStudents = await Student.countDocuments({ batchId: batchUuid, status: 'active' });
+  const completedStudents = await Student.countDocuments({ batchId: batchUuid, status: 'completed' });
 
   return {
     success: true,
-    students: students.filter(
-      (student) => student.batchUuid === batchUuid
-    ),
+    batch: {
+      id: batch._id,
+      name: batch.name,
+      totalStudents,
+      activeStudents,
+      completedStudents,
+    },
+  };
+}
+
+export async function getBatchStudentsService(batchUuid) {
+  const students = await Student.find({ batchId: batchUuid })
+    .populate(studentPopulateForRecruiter)
+    .lean();
+
+  const mapped = students.map((s) => ({
+    id: s._id,
+    name: s.userId?.name || null,
+    email: s.userId?.email || null,
+    status: s.status || null,
+  }));
+
+  return {
+    success: true,
+    students: mapped,
   };
 }
 
 export async function getStudentPortfolioService(batchUuid, studentId) {
-  const students = [
-    {
-      id: 'student-001',
-      name: 'Aisha Khan',
-      email: 'aisha@example.com',
-      status: 'active',
-      batchUuid: 'batch-001',
-      attendance: '92%',
-      overallScore: 88,
-      course: 'MERN Stack',
-    },
-    {
-      id: 'student-002',
-      name: 'Bilal Ahmed',
-      email: 'bilal@example.com',
-      status: 'active',
-      batchUuid: 'batch-001',
-      attendance: '95%',
-      overallScore: 91,
-      course: 'MERN Stack',
-    },
-    {
-      id: 'student-003',
-      name: 'Sara Ali',
-      email: 'sara@example.com',
-      status: 'active',
-      batchUuid: 'batch-002',
-      attendance: '90%',
-      overallScore: 85,
-      course: 'Java Full Stack',
-    },
-    {
-      id: 'student-004',
-      name: 'John Doe',
-      email: 'john@example.com',
-      status: 'completed',
-      batchUuid: 'batch-002',
-      attendance: '98%',
-      overallScore: 94,
-      course: 'Java Full Stack',
-    },
-  ];
-
-  const student = students.find(
-    (student) =>
-      student.batchUuid === batchUuid &&
-      student.id === studentId
-  );
+  const student = await Student.findOne({ _id: studentId, batchId: batchUuid })
+    .populate(studentPopulateForRecruiter)
+    .lean();
 
   if (!student) {
-    return {
-      success: false,
-      message: 'Student not found',
-    };
+    throw new CustomError('Student not found', 404);
   }
+
+  const [attendance, overallScore] = await Promise.all([
+    metricsService.getAttendanceRate(studentId, batchUuid),
+    metricsService.getTotalScore(studentId),
+  ]);
+
+  const course = (student.enrolledCourseIds && student.enrolledCourseIds[0] && student.enrolledCourseIds[0].name) || null;
 
   return {
     success: true,
-    student,
+    student: {
+      id: student._id,
+      name: student.userId?.name || null,
+      email: student.userId?.email || null,
+      status: student.status || null,
+      attendance,
+      overallScore,
+      course,
+    },
   };
 }

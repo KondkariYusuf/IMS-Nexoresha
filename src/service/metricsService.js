@@ -11,11 +11,9 @@ import {
   StudentLedger,
 } from '../models/index.js';
 import * as cacheService from './cacheService.js';
+import { CONSTANTS } from '../utils/constant.js';
 
-// TODO: the current schemas do not define a dedicated baseScore or markCap field.
-// The implementation uses the student's totalPoints value as the base score and a default cap of 100.
-const DEFAULT_BASE_SCORE = 0;
-const DEFAULT_MARK_CAP = 100;
+
 
 function toNumber(value) {
   const parsedValue = Number(value);
@@ -167,7 +165,7 @@ async function getBatchScoreSummary(batchId) {
     totalScore: clamp(
       (ledgerMap.get(student._id) || 0) + toNumber(student.totalPoints) + toNumber(student.baseScore),
       0,
-      DEFAULT_MARK_CAP,
+      CONSTANTS.MARK_CAP,
     ),
   }));
 }
@@ -282,7 +280,7 @@ async function getTotalScore(studentId) {
   }
 
   const ledgerSum = await getLedgerSum(studentId);
-  return clamp(ledgerSum + toNumber(student.totalPoints) + toNumber(student.baseScore), 0, DEFAULT_MARK_CAP);
+  return clamp(ledgerSum + toNumber(student.totalPoints) + toNumber(student.baseScore), 0, CONSTANTS.MARK_CAP);
 }
 
 async function getBatchRank(studentId, batchId) {
