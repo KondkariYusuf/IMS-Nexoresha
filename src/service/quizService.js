@@ -1,479 +1,244 @@
-import mongoose from "mongoose";
+import {
+    Quiz,
+    QuizResult,
+    Session,
+    Student,
+    User,
+} from '../models/index.js';
+import { CustomError } from '../../utils/customError.js';
 
-import { CustomError } from "../../utils/customError.js";
+async function applyMarksSafely(payload) {
+    try {
+        const pointsService = await import('./pointsService.js');
 
-import Quiz from "../models/quiz.model.js";
-import QuizResult from "../models/quizResult.model.js";
-import Session from "../models/session.model.js";
-import Student from "../models/student.model.js";
-import StudentLedger from "../models/studentLedger.model.js";
-import StudentMetrics from "../models/studentMetrics.model.js";
-
-// ===================================================
-// Helper : Recalculate Student Metrics
-// ===================================================
-
-async function recalculateStudentMetrics(studentId) {
-
-    const quizResults = await QuizResult.find({ studentId });
-
-    const totalPoints = quizResults.reduce(
-        (sum, item) => sum + (item.totalPoints || 0),
-        0
-    );
-
-    const totalPercentage = quizResults.reduce(
-        (sum, item) => sum + (item.percentage || 0),
-        0
-    );
-
-    const quizCompleted = quizResults.length;
-
-    const quizAvgScore =
-        quizCompleted === 0
-            ? 0
-            : totalPercentage / quizCompleted;
-
-    await StudentMetrics.findOneAndUpdate(
-        { studentId },
-        {
-            studentId,
-            totalPoints,
-            quizCompleted,
-            totalQuiz: quizCompleted,
-            quizAvgScore,
-        },
-        {
-            new: true,
-            upsert: true,
-            runValidators: true,
+        if (typeof pointsService.applyMarkEvent === 'function') {
+            await pointsService.applyMarkEvent(payload);
         }
-    );
+
+        if (typeof pointsService.applyPoints === 'function') {
+            await pointsService.applyPoints(payload);
+        }
+    } catch {
+        // Do not block quiz upload if points service is unavailable.
+    }
 }
 
-// ===================================================
-// Create Quiz
-// ===================================================
-
-export async function createQuiz(data) {
-
-    const {
-        title,
-        batchId,
-        sessionId,
-        link,
-        submissionDeadline,
-        totalMarks,
-        passingMarks,
-        totaldurationInMins,
-    } = data;
-
-    const session = await Session.findById(sessionId);
-
-    if (!session) {
-        throw new CustomError("Session not found.", 404);
+async function resolveStudent(row) {
+    if (row.studentId) {
+        return Student.findById(row.studentId);
     }
 
-    const existingQuiz = await Quiz.findOne({
-        sessionId,
-    });
+    const email = row.student_email || row.email;
+    const user = await User.findOne({ email });
 
-    if (existingQuiz) {
-        throw new CustomError(
-            "Quiz already exists for this session.",
-            409
-        );
-    }
+    if (!user) return null;
 
-    return await Quiz.create({
-        title,
-        batchId,
-        sessionId,
-        link,
-        submissionDeadline,
-        totalMarks,
-        passingMarks,
-        totaldurationInMins,
-    });
+    return Student.findOne({ userId: user._id });
 }
 
-// ===================================================
-// Get All Quizzes
-// ===================================================
+/* Controller-compatible names */
 
-export async function getAllQuizzes() {
-
-    return await Quiz.find().sort({
-        createdAt: -1,
-    });
-
+export async function createQuizService(data) {
+    return Quiz.create(data);
 }
 
-// ===================================================
-// Get Quiz By ID
-// ===================================================
+export async function getAllQuizzesService() {
+    return Quiz.find().sort({ createdAt: -1 });
+}
 
-export async function getQuizById(id) {
-
+export async function getQuizByIdService(id) {
     const quiz = await Quiz.findById(id);
+    if (!quiz) throw new CustomError('Quiz not found.', 404);
+    return quiz;
+}
 
-    if (!quiz) {
-        throw new CustomError(
-            "Quiz not found.",
-            404
-        );
-    }
+export async function updateQuizService(id, data) {
+    const quiz = await Quiz.findByIdAndUpdate(id, data, {
+        new: true,
+        runValidators: true,
+    });
+
+    if (!quiz) throw new CustomError('Quiz not found.', 404);
 
     return quiz;
 }
-// ===================================================
-// Update Quiz
-// ===================================================
 
-export async function updateQuiz(id, data) {
-
-    const existingQuiz = await Quiz.findById(id);
-
-    if (!existingQuiz) {
-        throw new CustomError(
-            "Quiz not found.",
-            404
-        );
-    }
-
-    if (data.sessionId) {
-
-        const session = await Session.findById(
-            data.sessionId
-        );
-
-        if (!session) {
-            throw new CustomError(
-                "Session not found.",
-                404
-            );
-        }
-
-        const duplicateQuiz = await Quiz.findOne({
-            sessionId: data.sessionId,
-            _id: { $ne: id },
-        });
-
-        if (duplicateQuiz) {
-            throw new CustomError(
-                "Quiz already exists for this session.",
-                409
-            );
-        }
-    }
-
-    return await Quiz.findByIdAndUpdate(
-        id,
-        data,
-        {
-            new: true,
-            runValidators: true,
-        }
-    );
-}
-
-// ===================================================
-// Delete Quiz
-// ===================================================
-
-export async function deleteQuiz(id) {
-
+export async function deleteQuizService(id) {
     const quiz = await Quiz.findById(id);
+    if (!quiz) throw new CustomError('Quiz not found.', 404);
 
-    if (!quiz) {
-        throw new CustomError(
-            "Quiz not found.",
-            404
-        );
-    }
-
-    // Delete all quiz results of this quiz
-    await QuizResult.deleteMany({
-        quizId: id,
-    });
-
-    // Delete all ledger entries of this quiz
-    await StudentLedger.deleteMany({
-        sourceId: id,
-        sourceType: "quiz",
-    });
-
-    // Delete quiz
+    await QuizResult.deleteMany({ quizId: id });
     await Quiz.findByIdAndDelete(id);
 
-    // Recalculate metrics for all affected students
-    const students = await Student.find();
+    return { deleted: true };
+}
 
-    for (const student of students) {
-        await recalculateStudentMetrics(student._id);
+/* Dev4 required lecture quiz JSON upload */
+
+export async function uploadLectureQuizResultsService({
+    lectureId,
+    teacherId,
+    quiz,
+}) {
+    const session = await Session.findById(lectureId);
+
+    if (!session) {
+        throw new CustomError('Lecture/session not found', 404);
+    }
+
+    if (session.status === 'cancelled' || session.status === 'scheduled') {
+        throw new CustomError(
+            'Quiz can only be uploaded for in-progress or completed lectures',
+            400,
+        );
+    }
+
+    const processed = [];
+    const errors = [];
+
+    for (let i = 0; i < quiz.length; i += 1) {
+        const row = quiz[i];
+        const student = await resolveStudent(row);
+
+        if (!student) {
+            errors.push({
+                row: i + 1,
+                field: 'student',
+                message: row.studentId
+                    ? `Student not found: ${row.studentId}`
+                    : `Student email not found: ${row.student_email || row.email}`,
+            });
+            continue;
+        }
+
+        const score = Number(row.score);
+
+        const record = await QuizResult.findOneAndUpdate(
+            {
+                lectureId,
+                studentId: student._id,
+            },
+            {
+                studentId: student._id,
+                quizId: row.quizId || lectureId,
+                lectureId,
+                totalMarks: 5,
+                marksObtained: score,
+                score,
+                marksApplied: score,
+                percentage: (score / 5) * 100,
+                submittedAt: new Date(),
+                uploadedBy: teacherId,
+                feedback: row.feedback || '',
+            },
+            {
+                new: true,
+                upsert: true,
+                runValidators: true,
+            },
+        );
+
+        await applyMarksSafely({
+            studentId: student._id,
+            batchId: student.batchId,
+            lectureId,
+            eventType: 'quiz',
+            marksApplied: score,
+            meta: {
+                quizResultId: record._id,
+            },
+        });
+
+        processed.push({
+            studentId: student._id,
+            score,
+            marksApplied: score,
+        });
+    }
+
+    if (errors.length > 0) {
+        throw new CustomError('Quiz validation failed', 400, errors);
     }
 
     return {
-        message: "Quiz deleted successfully.",
+        processed: processed.length,
+        errors: [],
+        summary: processed,
     };
 }
-// ===================================================
-// Upload Quiz Results of Complete Batch (JSON)
-// ===================================================
 
-export async function uploadQuizResults(data) {
+export async function getLectureQuizResultsService(lectureId) {
+    const session = await Session.findById(lectureId);
 
+    if (!session) {
+        throw new CustomError('Lecture/session not found', 404);
+    }
+
+    const quizResults = await QuizResult.find({ lectureId });
+
+    return {
+        totalStudents: quizResults.length,
+        quizResults,
+    };
+}
+
+/* Old quiz APIs kept for Dev4 compatibility */
+
+export async function uploadQuizResultsService(data) {
     const { quizId, results } = data;
 
-    // Validate quiz
-    const quiz = await Quiz.findById(quizId);
-
-    if (!quiz) {
-        throw new CustomError(
-            "Quiz not found.",
-            404
-        );
+    if (!Array.isArray(results)) {
+        throw new CustomError('results must be an array', 400);
     }
 
-    // Validate results array
-    if (!Array.isArray(results) || results.length === 0) {
-        throw new CustomError(
-            "Results array is required.",
-            400
-        );
-    }
+    const uploadedResults = [];
 
-    let session = null;
+    for (const row of results) {
+        const student = await Student.findById(row.studentId);
 
-    // Transaction (works only on replica set)
-    try {
-        session = await mongoose.startSession();
-        session.startTransaction();
-    } catch (err) {
-        session = null;
-    }
+        if (!student) {
+            throw new CustomError(`Student not found: ${row.studentId}`, 404);
+        }
 
-    try {
+        const score = Number(row.score);
 
-        const uploadedResults = [];
+        if (Number.isNaN(score) || score < 0 || score > 5) {
+            throw new CustomError(`Invalid score for ${row.studentId}`, 400);
+        }
 
-        for (const row of results) {
-
-            // ---------------- Student Validation ----------------
-
-            const student = await Student.findById(
-                row.studentId
-            );
-
-            if (!student) {
-                throw new CustomError(
-                    `Student not found : ${row.studentId}`,
-                    404
-                );
-            }
-
-            // Optional batch validation
-            if (
-                quiz.batchId &&
-                student.batchId &&
-                quiz.batchId !== student.batchId
-            ) {
-                throw new CustomError(
-                    `${student._id} does not belong to this batch.`,
-                    400
-                );
-            }
-
-            const score = Number(row.score);
-
-            if (isNaN(score)) {
-                throw new CustomError(
-                    `Invalid score for ${row.studentId}`,
-                    400
-                );
-            }
-
-            if (score < 0) {
-                throw new CustomError(
-                    `Score cannot be negative for ${row.studentId}`,
-                    400
-                );
-            }
-
-            if (score > Number(quiz.totalMarks)) {
-                throw new CustomError(
-                    `Score cannot exceed total marks for ${row.studentId}`,
-                    400
-                );
-            }
-
-            const percentage =
-                (score / Number(quiz.totalMarks)) * 100;
-
-            const result =
-                score >= Number(quiz.passingMarks)
-                    ? "pass"
-                    : "failed";
-
-            const points =
-                result === "pass"
-                    ? 10
-                    : 0;
-
-            // ---------------- Check Existing Quiz Result ----------------
-
-            let quizResult =
-                await QuizResult.findOne({
-                    studentId: row.studentId,
-                    quizId,
-                });
-                            // ===================================================
-            // Create / Update Quiz Result
-            // ===================================================
-
-            if (!quizResult) {
-
-                quizResult = await QuizResult.create({
-                    studentId: row.studentId,
-                    quizId,
-                    totalMarks: Number(quiz.totalMarks),
-                    marksObtained: score,
-                    percentage,
-                    points,
-                    bonusPoints: 0,
-                    totalPoints: points,
-                    timeTakenInMins: row.timeTakenInMins || 0,
-                    submittedAt: new Date(),
-                    feedback: row.feedback || "",
-                    result,
-                });
-
-            } else {
-
-                quizResult = await QuizResult.findOneAndUpdate(
-                    {
-                        studentId: row.studentId,
-                        quizId,
-                    },
-                    {
-                        totalMarks: Number(quiz.totalMarks),
-                        marksObtained: score,
-                        percentage,
-                        points,
-                        bonusPoints: 0,
-                        totalPoints: points,
-                        timeTakenInMins:
-                            row.timeTakenInMins || 0,
-                        submittedAt: new Date(),
-                        feedback: row.feedback || "",
-                        result,
-                    },
-                    {
-                        new: true,
-                        runValidators: true,
-                    }
-                );
-
-            }
-
-            // ===================================================
-            // Create / Update Student Ledger
-            // ===================================================
-
-            let ledger = await StudentLedger.findOne({
+        const result = await QuizResult.findOneAndUpdate(
+            {
+                quizId,
                 studentId: row.studentId,
-                sourceId: quizId,
-                sourceType: "quiz",
-            });
-
-            if (!ledger) {
-
-                await StudentLedger.create({
-                    studentId: row.studentId,
-                    sourceType: "quiz",
-                    sourceId: quizId,
-                    points,
-                    description: `Quiz : ${quiz.title}`,
-                });
-
-            } else {
-
-                await StudentLedger.findByIdAndUpdate(
-                    ledger._id,
-                    {
-                        points,
-                        description: `Quiz : ${quiz.title}`,
-                    },
-                    {
-                        new: true,
-                        runValidators: true,
-                    }
-                );
-
-            }
-                        // ===================================================
-            // Recalculate Student Metrics
-            // ===================================================
-
-            await recalculateStudentMetrics(
-                row.studentId
-            );
-
-            uploadedResults.push(quizResult);
-
-        } // End for loop
-
-        if (session) {
-            await session.commitTransaction();
-            session.endSession();
-        }
-
-        return uploadedResults;
-
-    } catch (error) {
-
-        if (session) {
-            await session.abortTransaction();
-            session.endSession();
-        }
-
-        throw error;
-    }
-
-}
-// ===================================================
-// Get All Results of One Quiz
-// ===================================================
-
-export async function getQuizResults(quizId) {
-
-    const quiz = await Quiz.findById(quizId);
-
-    if (!quiz) {
-        throw new CustomError(
-            "Quiz not found.",
-            404
+            },
+            {
+                quizId,
+                studentId: row.studentId,
+                totalMarks: 5,
+                marksObtained: score,
+                score,
+                marksApplied: score,
+                percentage: (score / 5) * 100,
+                submittedAt: new Date(),
+                feedback: row.feedback || '',
+            },
+            {
+                new: true,
+                upsert: true,
+                runValidators: true,
+            },
         );
+
+        uploadedResults.push(result);
     }
 
-    return await QuizResult.find({
-        quizId,
-    }).sort({
-        createdAt: -1,
-    });
-
+    return uploadedResults;
 }
 
-// ===================================================
-// Get All Results of One Student
-// ===================================================
+export async function getQuizResultsService(quizId) {
+    return QuizResult.find({ quizId }).sort({ createdAt: -1 });
+}
 
-export async function getStudentQuizResults(studentId) {
-
-    return await QuizResult.find({
-        studentId,
-    }).sort({
-        createdAt: -1,
-    });
-
+export async function getStudentQuizResultsService(studentId) {
+    return QuizResult.find({ studentId }).sort({ createdAt: -1 });
 }

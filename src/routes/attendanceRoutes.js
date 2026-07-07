@@ -1,31 +1,25 @@
 import { Router } from 'express';
 import {
   uploadAttendance,
-  uploadAttendanceAgain,
   getAttendance,
 } from '../controller/attendanceController.js';
-
-import {
-  validateAttendanceRequest,
-  validateAttendanceReUploadRequest,
-} from '../validator/attendanceValidator.js';
+import { validateAttendanceRequest } from '../validator/attendanceValidator.js';
+import { verifyToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
 router.post(
-  '/',
+  '/teacher/lectures/:id/attendance',
+  verifyToken,
+  requireRole(['teacher', 'instructor']),
   validateAttendanceRequest,
   uploadAttendance,
 );
 
-router.put(
-  '/reupload',
-  validateAttendanceReUploadRequest,
-  uploadAttendanceAgain,
-);
-
 router.get(
-  '/session/:sessionId',
+  '/teacher/lectures/:id/attendance',
+  verifyToken,
+  requireRole(['teacher', 'instructor']),
   getAttendance,
 );
 

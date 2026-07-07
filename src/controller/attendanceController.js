@@ -1,24 +1,21 @@
 import {
   markAttendance,
-  reUploadAttendance,
-  getAttendanceBySession,
+  getAttendanceByLecture,
 } from '../service/attendanceService.js';
 
 export async function uploadAttendance(req, res, next) {
   try {
-    const result = await markAttendance(req.body);
+    const result = await markAttendance({
+      lectureId: req.params.id,
+      teacherId: req.user?.id,
+      attendance: req.body.attendance,
+    });
 
-    return res.status(201).json(result);
-  } catch (error) {
-    next(error);
-  }
-}
-
-export async function uploadAttendanceAgain(req, res, next) {
-  try {
-    const result = await reUploadAttendance(req.body);
-
-    return res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Attendance processed successfully.',
+    });
   } catch (error) {
     next(error);
   }
@@ -26,11 +23,12 @@ export async function uploadAttendanceAgain(req, res, next) {
 
 export async function getAttendance(req, res, next) {
   try {
-    const { sessionId } = req.params;
+    const result = await getAttendanceByLecture(req.params.id);
 
-    const result = await getAttendanceBySession(sessionId);
-
-    return res.status(200).json(result);
+    return res.status(200).json({
+      success: true,
+      data: result,
+    });
   } catch (error) {
     next(error);
   }

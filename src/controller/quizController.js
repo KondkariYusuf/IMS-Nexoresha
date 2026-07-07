@@ -1,131 +1,114 @@
-import * as quizService from "../service/quizService.js";
+import {
+    createQuizService,
+    getAllQuizzesService,
+    getQuizByIdService,
+    updateQuizService,
+    deleteQuizService,
+    uploadLectureQuizResultsService,
+    getLectureQuizResultsService,
+    uploadQuizResultsService,
+    getQuizResultsService,
+    getStudentQuizResultsService,
+} from '../service/quizService.js';
 
-// ======================================
-// Quiz APIs
-// ======================================
-
-// Create Quiz
 export async function createQuiz(req, res, next) {
     try {
-        const quiz = await quizService.createQuiz(req.body);
-
-        return res.status(201).json({
-            success: true,
-            message: "Quiz created successfully.",
-            data: quiz,
-        });
+        const data = await createQuizService(req.body);
+        res.status(201).json({ success: true, data, message: 'Quiz created successfully.' });
     } catch (error) {
         next(error);
     }
 }
 
-// Get All Quizzes
 export async function getAllQuizzes(req, res, next) {
     try {
-        const quizzes = await quizService.getAllQuizzes();
-
-        return res.status(200).json({
-            success: true,
-            count: quizzes.length,
-            data: quizzes,
-        });
+        const data = await getAllQuizzesService();
+        res.status(200).json({ success: true, data });
     } catch (error) {
         next(error);
     }
 }
 
-// Get Quiz By ID
 export async function getQuizById(req, res, next) {
     try {
-        const quiz = await quizService.getQuizById(req.params.id);
-
-        return res.status(200).json({
-            success: true,
-            data: quiz,
-        });
+        const data = await getQuizByIdService(req.params.id);
+        res.status(200).json({ success: true, data });
     } catch (error) {
         next(error);
     }
 }
 
-// Update Quiz
 export async function updateQuiz(req, res, next) {
     try {
-        const updatedQuiz = await quizService.updateQuiz(
-            req.params.id,
-            req.body
-        );
-
-        return res.status(200).json({
-            success: true,
-            message: "Quiz updated successfully.",
-            data: updatedQuiz,
-        });
+        const data = await updateQuizService(req.params.id, req.body);
+        res.status(200).json({ success: true, data, message: 'Quiz updated successfully.' });
     } catch (error) {
         next(error);
     }
 }
 
-// Delete Quiz
 export async function deleteQuiz(req, res, next) {
     try {
-        const result = await quizService.deleteQuiz(req.params.id);
+        const data = await deleteQuizService(req.params.id);
+        res.status(200).json({ success: true, data, message: 'Quiz deleted successfully.' });
+    } catch (error) {
+        next(error);
+    }
+}
 
-        return res.status(200).json({
+export async function uploadLectureQuizResults(req, res, next) {
+    try {
+        const data = await uploadLectureQuizResultsService({
+            lectureId: req.params.id,
+            teacherId: req.user?.id,
+            quiz: req.body.quiz,
+        });
+
+        res.status(200).json({
             success: true,
-            message: result.message,
+            data,
+            message: 'Quiz results processed successfully.',
         });
     } catch (error) {
         next(error);
     }
 }
 
-// ======================================
-// Batch Quiz Result APIs
-// ======================================
+export async function getLectureQuizResults(req, res, next) {
+    try {
+        const data = await getLectureQuizResultsService(req.params.id);
+        res.status(200).json({ success: true, data });
+    } catch (error) {
+        next(error);
+    }
+}
 
-// Upload complete batch quiz results
 export async function uploadQuizResults(req, res, next) {
     try {
-        const result = await quizService.uploadQuizResults(req.body);
-
-        return res.status(201).json({
+        const data = await uploadQuizResultsService(req.body);
+        res.status(200).json({
             success: true,
-            message: "Quiz results uploaded successfully.",
-            data: result,
+            data,
+            message: 'Quiz results uploaded successfully.',
         });
     } catch (error) {
         next(error);
     }
 }
 
-// Get all results of one quiz
 export async function getQuizResults(req, res, next) {
     try {
-        const results = await quizService.getQuizResults(req.params.quizId);
-
-        return res.status(200).json({
-            success: true,
-            count: results.length,
-            data: results,
-        });
+        const data = await getQuizResultsService(req.params.quizId);
+        res.status(200).json({ success: true, data });
     } catch (error) {
         next(error);
     }
 }
 
-// Get all quiz results of one student
 export async function getStudentQuizResults(req, res, next) {
     try {
-        const results = await quizService.getStudentQuizResults(
-            req.params.studentId
-        );
-
-        return res.status(200).json({
-            success: true,
-            count: results.length,
-            data: results,
-        });
+        const data = await getStudentQuizResultsService(req.params.studentId);
+        res.status(200).json({ success: true, data });
     } catch (error) {
         next(error);
     }

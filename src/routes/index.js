@@ -17,8 +17,8 @@ router.use('/auth', authRoutes);
 
 router.use('/instructor', instructorRoutes);
 
-router.use('/attendance', attendanceRoutes);
-router.use('/quiz', quizRoutes);
+router.use('/', attendanceRoutes);
+router.use('/', quizRoutes);
 
 router.use('/admin', adminRoutes);
 router.use('/admin/audit-log', auditRoutes);

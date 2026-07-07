@@ -1,81 +1,36 @@
+import { CustomError } from '../../utils/customError.js';
+
 export function validateAttendanceRequest(req, res, next) {
-  const { sessionId, courseId, attendance } = req.body;
+  const { attendance } = req.body;
 
-  // Validate sessionId
-  if (!sessionId) {
-    return res.status(400).json({
-      success: false,
-      message: 'sessionId is required',
-    });
+  if (!Array.isArray(attendance)) {
+    return next(new CustomError('attendance must be an array', 400));
   }
 
-  // Validate courseId
-  if (!courseId) {
-    return res.status(400).json({
-      success: false,
-      message: 'courseId is required',
-    });
-  }
+  for (let i = 0; i < attendance.length; i += 1) {
+    const row = attendance[i];
 
-  // Validate attendance array
-  if (!Array.isArray(attendance) || attendance.length === 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'attendance must be a non-empty array',
-    });
-  }
-
-  const studentIds = new Set();
-
-  for (let i = 0; i < attendance.length; i++) {
-    const student = attendance[i];
-
-    if (!student.studentId) {
-      return res.status(400).json({
-        success: false,
-        message: `studentId is missing at index ${i}`,
-      });
+    if (!row.studentId && !row.student_email && !row.email) {
+      return next(
+        new CustomError(
+          `Row ${i + 1}: studentId or student_email is required`,
+          400,
+        ),
+      );
     }
 
-    if (studentIds.has(student.studentId)) {
-      return res.status(400).json({
-        success: false,
-        message: `Duplicate studentId found at index ${i}`,
-      });
+    if (typeof row.first_half !== 'boolean') {
+      return next(
+        new CustomError(`Row ${i + 1}: first_half must be boolean`, 400),
+      );
     }
 
-    studentIds.add(student.studentId);
-
-    if (typeof student.first_half !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        message: `first_half must be boolean at index ${i}`,
-      });
-    }
-
-    if (typeof student.second_half !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        message: `second_half must be boolean at index ${i}`,
-      });
+    if (typeof row.second_half !== 'boolean') {
+      return next(
+        new CustomError(`Row ${i + 1}: second_half must be boolean`, 400),
+      );
     }
   }
 
   next();
-}
-
-export function validateAttendanceReUploadRequest(req, res, next) {
-  // First run the common validations
-  validateAttendanceRequest(req, res, (err) => {
-    if (err) return next(err);
-
-    if (typeof req.body.isEntireAttendance !== 'boolean') {
-      return res.status(400).json({
-        success: false,
-        message: 'isEntireAttendance must be true or false',
-      });
-    }
-
-    next();
-  });
 }

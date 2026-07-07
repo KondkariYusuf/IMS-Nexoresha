@@ -1,69 +1,41 @@
-import { Router } from "express";
-import * as quizController from "../controller/quizController.js";
+import { Router } from 'express';
+import * as quizController from '../controller/quizController.js';
 import {
     validateCreateQuiz,
     validateQuizUpload,
-} from "../validator/quizValidator.js";
+} from '../validator/quizValidator.js';
+import { verifyToken, requireRole } from '../middleware/auth.js';
 
 const router = Router();
 
-// ======================================
-// Quiz APIs
-// ======================================
-
-// Create Quiz
 router.post(
-    "/",
-    validateCreateQuiz,
-    quizController.createQuiz
-);
-
-// Get All Quizzes
-router.get(
-    "/",
-    quizController.getAllQuizzes
-);
-
-// Get Quiz By ID
-router.get(
-    "/:id",
-    quizController.getQuizById
-);
-
-// Update Quiz
-router.put(
-    "/:id",
-    validateCreateQuiz,
-    quizController.updateQuiz
-);
-
-// Delete Quiz
-router.delete(
-    "/:id",
-    quizController.deleteQuiz
-);
-
-// ======================================
-// Batch Quiz Result APIs
-// ======================================
-
-// Teacher uploads complete batch result JSON
-router.post(
-    "/upload-results",
+    '/teacher/lectures/:id/quiz',
+    verifyToken,
+    requireRole(['teacher', 'instructor']),
     validateQuizUpload,
-    quizController.uploadQuizResults
+    quizController.uploadLectureQuizResults,
 );
 
-// Get all results of one quiz
 router.get(
-    "/results/:quizId",
-    quizController.getQuizResults
+    '/teacher/lectures/:id/quiz',
+    verifyToken,
+    requireRole(['teacher', 'instructor']),
+    quizController.getLectureQuizResults,
 );
 
-// Get all quiz results of one student
-router.get(
-    "/student/:studentId",
-    quizController.getStudentQuizResults
+router.post('/', validateCreateQuiz, quizController.createQuiz);
+router.get('/', quizController.getAllQuizzes);
+router.get('/:id', quizController.getQuizById);
+router.put('/:id', validateCreateQuiz, quizController.updateQuiz);
+router.delete('/:id', quizController.deleteQuiz);
+
+router.post(
+    '/upload-results',
+    validateQuizUpload,
+    quizController.uploadQuizResults,
 );
+
+router.get('/results/:quizId', quizController.getQuizResults);
+router.get('/student/:studentId', quizController.getStudentQuizResults);
 
 export default router;
