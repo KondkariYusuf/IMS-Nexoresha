@@ -11,7 +11,7 @@ dns.setServers(['8.8.8.8', '8.8.4.4'])
 const port = process.env.PORT || 4000;
 
 async function startServer() {
-  await connectDatabase(process.env.DB_URI);
+  await connectDatabase();
 
   app.listen(port, () => {
     console.log(`Server running on port ${port}`);
