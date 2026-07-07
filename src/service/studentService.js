@@ -31,7 +31,7 @@ export async function getStudentById(studentId) {
     throw new Error('studentId is required');
   }
 
-  const student = await Student.findById(studentId).populate(studentPopulateOptions).lean();
+  const student = await Student.findOne({ _id: studentId }).populate(studentPopulateOptions).lean();
   if (!student) {
     throw new Error('Student not found');
   }

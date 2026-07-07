@@ -90,12 +90,13 @@ async function resolveStudent(studentId) {
   }
 
   const selectFields = '_id enrollementNo batchId totalPoints baseScore enrolledCourseIds';
-  const byObjectId = await Student.findById(studentId).select(selectFields).lean();
-  if (byObjectId) {
-    return byObjectId;
-  }
 
-  return Student.findOne({ enrollementNo: studentId })
+  return Student.findOne({
+    $or: [
+      { _id: studentId },
+      { enrollementNo: studentId },
+    ],
+  })
     .select(selectFields)
     .lean();
 }

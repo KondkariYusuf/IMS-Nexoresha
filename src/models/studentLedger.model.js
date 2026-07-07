@@ -1,16 +1,80 @@
 import mongoose from 'mongoose';
 import { schemaOptions, uuidId } from './modelHelpers.js';
-import * as markService from '../service/markService.js';
 
 const studentLedgerSchema = new mongoose.Schema(
   {
     _id: uuidId,
-    studentId: { type: String, ref: 'Student' },
-    sourceType: { type: String, enum: ['assignment', 'quiz', 'attendance', 'extra'] },
-    sourceId: { type: String, default: null },
-    points: { type: Number, default: 0 },
-    description: { type: String, trim: true },
-    deletedAt: { type: Date, default: null },
+
+    studentId: {
+      type: String,
+      ref: 'Student',
+      required: true,
+    },
+
+    batchId: {
+      type: String,
+      ref: 'Batch',
+      required: true,
+    },
+
+    sourceType: {
+      type: String,
+      enum: ['assignment', 'quiz', 'attendance', 'extra', 'admin_override', 'reversal'],
+      required: true,
+    },
+
+    sourceId: {
+      type: String,
+      default: null,
+    },
+
+    points: {
+      type: Number,
+      required: true,
+      default: 0,
+    },
+
+    runningTotal: {
+      type: Number,
+      default: 0,
+    },
+
+    excessPoints: {
+      type: Number,
+      default: 0,
+    },
+
+    description: {
+      type: String,
+      trim: true,
+    },
+
+    meta: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+
+    isReversal: {
+      type: Boolean,
+      default: false,
+    },
+
+    reversalOf: {
+      type: String,
+      ref: 'StudentLedger',
+      default: null,
+    },
+
+    createdBy: {
+      type: String,
+      ref: 'User',
+      default: null,
+    },
+
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
   },
   {
     ...schemaOptions,
@@ -18,16 +82,5 @@ const studentLedgerSchema = new mongoose.Schema(
   },
 );
 
-studentLedgerSchema.post('save', async function (doc) {
-  if (doc.studentId) {
-    await markService.applyMarkEvent(doc.studentId);
-  }
-});
-
-studentLedgerSchema.post('findOneAndUpdate', async function (doc) {
-  if (doc?.studentId) {
-    await markService.applyMarkEvent(doc.studentId);
-  }
-});
-
-export default mongoose.models.StudentLedger || mongoose.model('StudentLedger', studentLedgerSchema);
+export default mongoose.models.StudentLedger ||
+  mongoose.model('StudentLedger', studentLedgerSchema);
