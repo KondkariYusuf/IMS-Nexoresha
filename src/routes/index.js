@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import healthRoutes from './healthRoutes.js';
-import instructorRoutes from './instructorRoutes.js';
 import adminRoutes from './adminRoutes.js';
 import metricsRoutes from './metricsRoutes.js';
 import studentRoutes from './studentRoutes.js';
@@ -8,11 +7,15 @@ import auditRoutes from './auditRoutes.js';
 import marksRoutes from './marksRoutes.js';
 import authRoutes from './authRoutes.js';
 import assignmentSubmissionRoutes from './assignmentSubmissionRoutes.js';
+import instructorRoutes from './instructorRoutes.js';
+import recruiterRoutes from './recruiterRoutes.js';
 
 const router = Router();
 
 router.use('/instructor', instructorRoutes);
+router.use('/recruiter', recruiterRoutes);
 router.use('/health', healthRoutes);
+
 router.use('/auth', authRoutes);
 
 router.use('/admin', adminRoutes);

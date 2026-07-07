@@ -4,6 +4,7 @@ import {
   AssignmentSubmission,
   Attendance,
   Batch,
+  BatchConfig,
   Quiz,
   QuizResult,
   Session,
@@ -11,11 +12,7 @@ import {
   StudentLedger,
 } from '../models/index.js';
 import * as cacheService from './cacheService.js';
-
-// TODO: the current schemas do not define a dedicated baseScore or markCap field.
-// The implementation uses the student's totalPoints value as the base score and a default cap of 100.
-const DEFAULT_BASE_SCORE = 0;
-const DEFAULT_MARK_CAP = 100;
+import { CONSTANTS } from '../../utils/constant.js';
 
 function toNumber(value) {
   const parsedValue = Number(value);
@@ -91,7 +88,7 @@ async function resolveStudent(studentId) {
     return null;
   }
 
-  const selectFields = '_id enrollementNo batchId totalPoints baseScore enrolledCourseIds';
+  const selectFields = '_id enrollementNo batchId enrolledCourseIds';
 
   return Student.findOne({
     $or: [
@@ -129,6 +126,15 @@ async function getLedgerSum(studentId) {
   return ledgerEntries.reduce((sum, entry) => sum + toNumber(entry.points), 0);
 }
 
+async function getBatchConfig(batchId) {
+  if (!batchId) {
+    return null;
+  }
+
+  const batchConfig = await BatchConfig.findOne({ batchId }).select('baseScore markCap').lean();
+  return batchConfig;
+}
+
 // Aggregate each student's ledger points and add the stored base score to build a batch-level total score.
 async function getBatchScoreSummary(batchId) {
   if (!batchId) {
@@ -140,7 +146,11 @@ async function getBatchScoreSummary(batchId) {
     return [];
   }
 
-  const students = await Student.find({ batchId }).select('_id totalPoints baseScore').lean();
+  const [batchConfig, students] = await Promise.all([
+    getBatchConfig(batchId),
+    Student.find({ batchId }).select('_id').lean(),
+  ]);
+
   if (!students.length) {
     return [];
   }
@@ -162,15 +172,17 @@ async function getBatchScoreSummary(batchId) {
   ]);
 
   const ledgerMap = new Map(ledgerTotals.map((item) => [item._id, toNumber(item.ledgerSum)]));
+  const baseScore = batchConfig?.baseScore || 0;
+  const markCap = batchConfig?.markCap ?? CONSTANTS.MARK_CAP;
 
-  return students.map((student) => ({
-    studentId: student._id,
-    totalScore: clamp(
-      (ledgerMap.get(student._id) || 0) + toNumber(student.totalPoints) + toNumber(student.baseScore),
-      0,
-      DEFAULT_MARK_CAP,
-    ),
-  }));
+  return students.map((student) => {
+    const totalScore = (ledgerMap.get(student._id) || 0) + baseScore;
+
+    return {
+      studentId: student._id,
+      totalScore: clamp(totalScore, 0, markCap),
+    };
+  });
 }
 
 // Rank is derived from descending total score, and percentile is the share of students below the target student.
@@ -282,8 +294,12 @@ async function getTotalScore(studentId) {
     return 0;
   }
 
+  const batchConfig = await getBatchConfig(student.batchId);
+  const baseScore = batchConfig?.baseScore || 0;
+  const markCap = batchConfig?.markCap ?? CONSTANTS.MARK_CAP;
   const ledgerSum = await getLedgerSum(studentId);
-  return clamp(ledgerSum + toNumber(student.totalPoints) + toNumber(student.baseScore), 0, DEFAULT_MARK_CAP);
+  const totalScore = ledgerSum + baseScore;
+  return clamp(totalScore, 0, markCap);
 }
 
 async function getBatchRank(studentId, batchId) {
