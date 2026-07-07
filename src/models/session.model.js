@@ -14,7 +14,7 @@ const sessionSchema = new mongoose.Schema(
     duration: { type: String, trim: true },
     status: {
       type: String,
-      enum: ['scheduled', 'In Progress', 'completed', 'cancelled', 'postponed'],
+      enum: ['scheduled', 'In Progress', 'live', 'completed', 'cancelled', 'postponed'],
       default: 'scheduled',
     },
     createdBy: { type: String, ref: 'User' },

@@ -7,12 +7,12 @@ import studentRoutes from './studentRoutes.js';
 import auditRoutes from './auditRoutes.js';
 import marksRoutes from './marksRoutes.js';
 import authRoutes from './authRoutes.js';
+import assignmentSubmissionRoutes from './assignmentSubmissionRoutes.js';
 
 const router = Router();
 
 router.use('/instructor', instructorRoutes);
 router.use('/health', healthRoutes);
-
 router.use('/auth', authRoutes);
 
 router.use('/admin', adminRoutes);
@@ -21,5 +21,7 @@ router.use('/admin/marks', marksRoutes);
 
 router.use('/metrics', metricsRoutes);
 router.use('/students', studentRoutes);
+router.use('/student', studentRoutes);
+router.use('/assignment-submissions', assignmentSubmissionRoutes);
 
 export default router;

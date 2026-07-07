@@ -4,7 +4,6 @@ import { schemaOptions, uuidId } from './modelHelpers.js';
 const batchSchema = new mongoose.Schema(
   {
     _id: uuidId,
-
     name: {
       type: String,
       required: true,

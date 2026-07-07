@@ -10,6 +10,7 @@ export function errorHandler(error, _req, res, _next) {
   res.status(statusCode).json({
     success: false,
     message: error.message || 'Internal server error',
-    errors: [],
+    statusCode,
+    errors: error.errors || [],
   });
-} 
+}

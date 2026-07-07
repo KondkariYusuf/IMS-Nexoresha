@@ -8,8 +8,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "seed": "node seed.js",
-    "seed:reset": "node seed.js --reset"
+    "seed": "node seed/seed.js",
+    "seed:reset": "node seed/seed.js --reset"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -28,6 +28,7 @@
     "multer": "^2.2.0",
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^9.0.3",
+    "pdfkit": "^0.13.0",
     "redis": "^6.1.0",
     "uuid": "^14.0.1"
   }

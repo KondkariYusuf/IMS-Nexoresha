@@ -6,7 +6,7 @@ export function resolveDatabaseUri() {
 
 export async function connectDatabase(uri = resolveDatabaseUri()) {
   if (!uri) {
-    throw new Error('A database URI is required. Set DB_URI or MONGO_URL.');
+    throw new Error('DB_URI or MONGO_URL is required');
   }
 
   mongoose.set('strictQuery', true);
