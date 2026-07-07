@@ -11,6 +11,7 @@ import {
 } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
 import { generatePortfolioPDF } from './pdfService.js';
+import { queueReview } from './codeReviewService.js';
 
 const TEST_STUDENT_ID = 'student-001';
 
@@ -404,6 +405,8 @@ export async function submitAssignment(req) {
     submittedAt,
     onTimeSubmission,
   });
+
+  queueReview(submission._id).catch(err => console.error('Failed to queue review:', err));
 
   return {
     submissionId: submission._id,

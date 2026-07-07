@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import mongoose from 'mongoose';
 import { Student, User, Batch } from './src/models/index.js';
+import dns from 'dns';
+
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 
 async function setupTestStudent() {
   try {
