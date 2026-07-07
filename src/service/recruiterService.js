@@ -1,6 +1,6 @@
 import { Student, Batch } from '../models/index.js';
 import * as metricsService from './metricsService.js';
-import { CustomError } from '../utils/customError.js';
+import { CustomError } from '../../utils/customError.js';
 
 const studentPopulateForRecruiter = [
   { path: 'userId', select: 'name email profileStatus' },
@@ -15,7 +15,7 @@ export async function getBatchOverviewService(batchUuid) {
 
   const totalStudents = await Student.countDocuments({ batchId: batchUuid });
   const activeStudents = await Student.countDocuments({ batchId: batchUuid, status: 'active' });
-  const completedStudents = await Student.countDocuments({ batchId: batchUuid, status: 'completed' });
+  const completedStudents = totalStudents - activeStudents;
 
   return {
     success: true,

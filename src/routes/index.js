@@ -1,7 +1,6 @@
 import express from 'express';
 import healthRoutes from './healthRoutes.js';
 import recruiterRoutes from './recruiterRoutes.js';
-import mockRoutes from './mockRoutes.js';
 import adminRoutes from './adminRoutes.js';
 import metricsRoutes from './metricsRoutes.js';
 import studentRoutes from './studentRoutes.js';
@@ -14,7 +13,6 @@ const router = express.Router();
 router.use('/health', healthRoutes);
 
 router.use('/recruiter', recruiterRoutes);
-router.use('/mock', mockRoutes);
 
 router.use('/auth', authRoutes);
 

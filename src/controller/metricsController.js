@@ -1,220 +1,138 @@
 import * as metricsService from '../service/metricsService.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
-function sendError(res, error) {
-  return res.status(500).json({
-    success: false,
-    message: error.message,
+export const getAllMetrics = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const metrics = await metricsService.getAllMetrics(studentId, batchId);
+
+  return res.status(200).json({
+    success: true,
+    data: metrics,
   });
-}
+});
 
-export async function getAllMetrics(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const metrics = await metricsService.getAllMetrics(studentId, batchId);
+export const getTotalScore = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  const value = await metricsService.getTotalScore(studentId);
 
-    return res.status(200).json({
-      success: true,
-      data: metrics,
-    });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getTotalScore(req, res) {
-  try {
-    const { studentId } = req.params;
-    const value = await metricsService.getTotalScore(studentId);
+export const getBatchRank = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getBatchRank(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getBatchRank(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getBatchRank(studentId, batchId);
+export const getBatchPercentile = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getBatchPercentile(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getBatchPercentile(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getBatchPercentile(studentId, batchId);
+export const getAssignmentAvgScore = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  const value = await metricsService.getAssignmentAvgScore(studentId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getAssignmentAvgScore(req, res) {
-  try {
-    const { studentId } = req.params;
-    const value = await metricsService.getAssignmentAvgScore(studentId);
+export const getQuizAvgScore = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  const value = await metricsService.getQuizAvgScore(studentId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getQuizAvgScore(req, res) {
-  try {
-    const { studentId } = req.params;
-    const value = await metricsService.getQuizAvgScore(studentId);
+export const getQuizParticipationRate = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getQuizParticipationRate(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getQuizParticipationRate(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getQuizParticipationRate(studentId, batchId);
+export const getAttendanceRate = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getAttendanceRate(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getAttendanceRate(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getAttendanceRate(studentId, batchId);
+export const getOnTimeSubmissionRate = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getOnTimeSubmissionRate(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getOnTimeSubmissionRate(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getOnTimeSubmissionRate(studentId, batchId);
+export const getPunctualityIndex = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getPunctualityIndex(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getPunctualityIndex(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getPunctualityIndex(studentId, batchId);
+export const getSubmissionLeadTime = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  const value = await metricsService.getSubmissionLeadTime(studentId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getSubmissionLeadTime(req, res) {
-  try {
-    const { studentId } = req.params;
-    const value = await metricsService.getSubmissionLeadTime(studentId);
+export const getZeroMissStreaks = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getZeroMissStreaks(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getZeroMissStreaks(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getZeroMissStreaks(studentId, batchId);
+export const getCodeQualityAvg = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  const value = await metricsService.getCodeQualityAvg(studentId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getCodeQualityAvg(req, res) {
-  try {
-    const { studentId } = req.params;
-    const value = await metricsService.getCodeQualityAvg(studentId);
+export const getCodeImprovementRate = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  const value = await metricsService.getCodeImprovementRate(studentId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getCodeImprovementRate(req, res) {
-  try {
-    const { studentId } = req.params;
-    const value = await metricsService.getCodeImprovementRate(studentId);
+export const getPerfectAssignmentCount = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  const value = await metricsService.getPerfectAssignmentCount(studentId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getPerfectAssignmentCount(req, res) {
-  try {
-    const { studentId } = req.params;
-    const value = await metricsService.getPerfectAssignmentCount(studentId);
+export const getBelowAvgAssignmentRate = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getBelowAvgAssignmentRate(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getBelowAvgAssignmentRate(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getBelowAvgAssignmentRate(studentId, batchId);
+export const getConsistencyScore = asyncHandler(async (req, res) => {
+  const { studentId } = req.params;
+  const value = await metricsService.getConsistencyScore(studentId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getConsistencyScore(req, res) {
-  try {
-    const { studentId } = req.params;
-    const value = await metricsService.getConsistencyScore(studentId);
+export const getGrowthRate = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getGrowthRate(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
 
-export async function getGrowthRate(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getGrowthRate(studentId, batchId);
+export const getEngagementScore = asyncHandler(async (req, res) => {
+  const { studentId, batchId } = req.params;
+  const value = await metricsService.getEngagementScore(studentId, batchId);
 
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
-
-export async function getEngagementScore(req, res) {
-  try {
-    const { studentId, batchId } = req.params;
-    const value = await metricsService.getEngagementScore(studentId, batchId);
-
-    return res.status(200).json({ success: true, data: value });
-  } catch (error) {
-    return sendError(res, error);
-  }
-}
+  return res.status(200).json({ success: true, data: value });
+});
