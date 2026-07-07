@@ -31,7 +31,6 @@ const router = Router();
 
 // General admin student fetch routes
 router.get('/', getAllStudents);
-router.get('/:studentId', getStudentById);
 
 // Create student
 router.post('/', validateCreateStudent, createStudent);
@@ -108,5 +107,7 @@ router.patch(
   '/notifications/read-all',
   readAllNotifications
 );
+
+router.get('/:studentId', getStudentById);
 
 export default router;
