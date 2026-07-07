@@ -19,3 +19,5 @@ export { default as Topic } from './topic.model.js';
 export { default as Notification } from './notification.model.js';
 export { default as BatchConfig } from './batchConfig.model.js';
 export { default as AuditLog } from "./auditLog.model.js";
+export { default as AttendanceUpload } from './attendanceUpload.model.js';
+export { default as QuizUpload } from './quizUpload.model.js';

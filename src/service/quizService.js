@@ -1,42 +1,23 @@
 import {
     Quiz,
     QuizResult,
+    QuizUpload,
     Session,
     Student,
     User,
 } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
-
-async function applyMarksSafely(payload) {
-    try {
-        const pointsService = await import('./pointsService.js');
-
-        if (typeof pointsService.applyMarkEvent === 'function') {
-            await pointsService.applyMarkEvent(payload);
-        }
-
-        if (typeof pointsService.applyPoints === 'function') {
-            await pointsService.applyPoints(payload);
-        }
-    } catch {
-        // Do not block quiz upload if points service is unavailable.
-    }
-}
+import { applyMarkEvent } from './pointsService.js';
 
 async function resolveStudent(row) {
-    if (row.studentId) {
-        return Student.findById(row.studentId);
-    }
+    if (row.studentId) return Student.findById(row.studentId);
 
     const email = row.student_email || row.email;
     const user = await User.findOne({ email });
-
     if (!user) return null;
 
     return Student.findOne({ userId: user._id });
 }
-
-/* Controller-compatible names */
 
 export async function createQuizService(data) {
     return Quiz.create(data);
@@ -59,7 +40,6 @@ export async function updateQuizService(id, data) {
     });
 
     if (!quiz) throw new CustomError('Quiz not found.', 404);
-
     return quiz;
 }
 
@@ -73,106 +53,121 @@ export async function deleteQuizService(id) {
     return { deleted: true };
 }
 
-/* Dev4 required lecture quiz JSON upload */
-
 export async function uploadLectureQuizResultsService({
     lectureId,
     teacherId,
     quiz,
 }) {
     const session = await Session.findById(lectureId);
+    if (!session) throw new CustomError('Lecture/session not found', 404);
 
-    if (!session) {
-        throw new CustomError('Lecture/session not found', 404);
-    }
-
-    if (session.status === 'cancelled' || session.status === 'scheduled') {
+    if (['cancelled', 'scheduled'].includes(String(session.status).toLowerCase())) {
         throw new CustomError(
             'Quiz can only be uploaded for in-progress or completed lectures',
             400,
         );
     }
 
-    const processed = [];
-    const errors = [];
+    const batchStudents = await Student.find({ batchId: session.batchId });
+    const previousResults = await QuizResult.find({ lectureId });
+    const previousMap = new Map(
+        previousResults.map((record) => [record.studentId, record.marksApplied || record.score || 0]),
+    );
+
+    const inputMap = new Map();
 
     for (let i = 0; i < quiz.length; i += 1) {
         const row = quiz[i];
         const student = await resolveStudent(row);
 
         if (!student) {
-            errors.push({
-                row: i + 1,
-                field: 'student',
-                message: row.studentId
+            throw new CustomError(
+                row.studentId
                     ? `Student not found: ${row.studentId}`
                     : `Student email not found: ${row.student_email || row.email}`,
-            });
-            continue;
+                404,
+            );
         }
 
-        const score = Number(row.score);
+        inputMap.set(student._id, {
+            student,
+            score: Number(row.score),
+            feedback: row.feedback || '',
+        });
+    }
+
+    const summary = [];
+
+    for (const student of batchStudents) {
+        const uploaded = inputMap.get(student._id);
+
+        const score = uploaded ? uploaded.score : -2.5;
+        const storedScore = uploaded ? uploaded.score : 0;
+        const oldMarks = previousMap.get(student._id) || 0;
+        const delta = score - oldMarks;
 
         const record = await QuizResult.findOneAndUpdate(
-            {
-                lectureId,
-                studentId: student._id,
-            },
+            { lectureId, studentId: student._id },
             {
                 studentId: student._id,
-                quizId: row.quizId || lectureId,
+                quizId: lectureId,
                 lectureId,
                 totalMarks: 5,
-                marksObtained: score,
-                score,
+                marksObtained: storedScore,
+                score: storedScore,
                 marksApplied: score,
-                percentage: (score / 5) * 100,
+                percentage: uploaded ? (storedScore / 5) * 100 : 0,
                 submittedAt: new Date(),
                 uploadedBy: teacherId,
-                feedback: row.feedback || '',
+                feedback: uploaded ? uploaded.feedback : 'Student missing from uploaded quiz data',
+                result: uploaded ? 'pending' : 'failed',
             },
-            {
-                new: true,
-                upsert: true,
-                runValidators: true,
-            },
+            { new: true, upsert: true, runValidators: true },
         );
-
-        await applyMarksSafely({
+        console.log({
             studentId: student._id,
             batchId: student.batchId,
-            lectureId,
-            eventType: 'quiz',
-            marksApplied: score,
-            meta: {
-                quizResultId: record._id,
-            },
         });
+        if (delta !== 0) {
+            await applyMarkEvent({
+                studentId: student._id,
+                batchId: student.batchId,
+                lectureId,
+                eventType: 'quiz',
+                marksApplied: delta,
+                meta: { quizResultId: record._id, replacement: oldMarks !== 0 },
+            });
+        }
 
-        processed.push({
+        summary.push({
             studentId: student._id,
-            score,
+            score: storedScore,
             marksApplied: score,
+            oldMarks,
+            delta,
+            quizMissed: !uploaded,
         });
     }
 
-    if (errors.length > 0) {
-        throw new CustomError('Quiz validation failed', 400, errors);
-    }
+    await QuizUpload.create({
+        lectureId,
+        uploadedBy: teacherId,
+        payload: quiz,
+        processed: summary.length,
+        errors: [],
+        replacedPrevious: previousResults.length > 0,
+    });
 
     return {
-        processed: processed.length,
+        processed: summary.length,
         errors: [],
-        summary: processed,
+        summary,
     };
 }
 
 export async function getLectureQuizResultsService(lectureId) {
     const session = await Session.findById(lectureId);
-
-    if (!session) {
-        throw new CustomError('Lecture/session not found', 404);
-    }
+    if (!session) throw new CustomError('Lecture/session not found', 404);
 
     const quizResults = await QuizResult.find({ lectureId });
 
@@ -181,8 +176,6 @@ export async function getLectureQuizResultsService(lectureId) {
         quizResults,
     };
 }
-
-/* Old quiz APIs kept for Dev4 compatibility */
 
 export async function uploadQuizResultsService(data) {
     const { quizId, results } = data;
@@ -195,22 +188,15 @@ export async function uploadQuizResultsService(data) {
 
     for (const row of results) {
         const student = await Student.findById(row.studentId);
-
-        if (!student) {
-            throw new CustomError(`Student not found: ${row.studentId}`, 404);
-        }
+        if (!student) throw new CustomError(`Student not found: ${row.studentId}`, 404);
 
         const score = Number(row.score);
-
         if (Number.isNaN(score) || score < 0 || score > 5) {
             throw new CustomError(`Invalid score for ${row.studentId}`, 400);
         }
 
         const result = await QuizResult.findOneAndUpdate(
-            {
-                quizId,
-                studentId: row.studentId,
-            },
+            { quizId, studentId: row.studentId },
             {
                 quizId,
                 studentId: row.studentId,
@@ -222,11 +208,7 @@ export async function uploadQuizResultsService(data) {
                 submittedAt: new Date(),
                 feedback: row.feedback || '',
             },
-            {
-                new: true,
-                upsert: true,
-                runValidators: true,
-            },
+            { new: true, upsert: true, runValidators: true },
         );
 
         uploadedResults.push(result);
