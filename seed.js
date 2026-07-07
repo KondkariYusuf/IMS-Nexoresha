@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { connectDatabase, disconnectDatabase } from './config/database.js';
+import bcrypt from 'bcrypt';
 import {
   Assignment,
   AssignmentResult,
@@ -110,13 +111,17 @@ const seed = async () => {
     const instructorRoleId = roles.find((role) => role.name === 'Instructor')._id.toString();
     const studentRoleId = roles.find((role) => role.name === 'Student')._id.toString();
 
+    const adminPasswordHashed = await bcrypt.hash('password456', 10);
+    const instructorPasswordHashed = await bcrypt.hash('Instructor@123', 10);
+    const studentPasswordHashed = await bcrypt.hash('Student@123', 10);
+
     const adminUser = (
       await User.insertMany([
         {
-          email: 'admin@ims-nexoresha.com',
+          email: 'admin@test.com',
           mobileNo: '+2348000000001',
           name: 'Aisha Okafor',
-          password: 'Admin@123',
+          password: adminPasswordHashed,
           roleId: adminRoleId,
           profileStatus: 'Active',
           tokenVersion: 0,
@@ -129,7 +134,7 @@ const seed = async () => {
         email: 'maria.adesuwa@ims-nexoresha.com',
         mobileNo: '+2348000000002',
         name: 'Maria Adesuwa',
-        password: 'Instructor@123',
+        password: instructorPasswordHashed,
         roleId: instructorRoleId,
         created_by: adminUser._id.toString(),
         profileStatus: 'Active',
@@ -139,7 +144,7 @@ const seed = async () => {
         email: 'david.owusu@ims-nexoresha.com',
         mobileNo: '+2348000000003',
         name: 'David Owusu',
-        password: 'Instructor@123',
+        password: instructorPasswordHashed,
         roleId: instructorRoleId,
         created_by: adminUser._id.toString(),
         profileStatus: 'Active',
@@ -152,7 +157,7 @@ const seed = async () => {
         email: 'tunde.balogun@ims-nexoresha.com',
         mobileNo: '+2348000000004',
         name: 'Tunde Balogun',
-        password: 'Student@123',
+        password: studentPasswordHashed,
         roleId: studentRoleId,
         created_by: adminUser._id.toString(),
         profileStatus: 'Active',
@@ -162,7 +167,7 @@ const seed = async () => {
         email: 'fola.akin@ims-nexoresha.com',
         mobileNo: '+2348000000005',
         name: 'Fola Akin',
-        password: 'Student@123',
+        password: studentPasswordHashed,
         roleId: studentRoleId,
         created_by: adminUser._id.toString(),
         profileStatus: 'Active',
@@ -172,7 +177,7 @@ const seed = async () => {
         email: 'grace.mensah@ims-nexoresha.com',
         mobileNo: '+2348000000006',
         name: 'Grace Mensah',
-        password: 'Student@123',
+        password: studentPasswordHashed,
         roleId: studentRoleId,
         created_by: adminUser._id.toString(),
         profileStatus: 'Active',
@@ -199,12 +204,14 @@ const seed = async () => {
       {
         userId: instructorUsers[0]._id.toString(),
         linkedInUrl: 'https://www.linkedin.com/in/mariaadesuwa',
+        designation: 'Senior Instructor',
         ratingSum: 45,
         ratingCount: 10,
       },
       {
         userId: instructorUsers[1]._id.toString(),
         linkedInUrl: 'https://www.linkedin.com/in/davidowusu',
+        designation: 'Associate Instructor',
         ratingSum: 40,
         ratingCount: 8,
       },
@@ -262,10 +269,12 @@ const seed = async () => {
       {
         name: 'Full-Stack Web Development',
         instructorIds: [instructors[0]._id.toString(), instructors[1]._id.toString()],
+        batchId: batches[0]._id.toString(),
       },
       {
         name: 'Data Analytics with Python',
         instructorIds: [instructors[1]._id.toString()],
+        batchId: batches[1]._id.toString(),
       },
     ]);
 
@@ -281,6 +290,7 @@ const seed = async () => {
         notes: 'Covered CRUD concepts and Postman testing.',
         recordingUrl: 'https://example.com/recordings/api-intro',
         courseId: courseIds[0],
+        batchId: batches[0]._id.toString(),
         instructorId: instructors[0]._id.toString(),
         meetUrl: 'https://meet.google.com/abc-defg-hij',
         sessionDateAndTime: new Date('2025-02-01T10:00:00.000Z'),
@@ -293,11 +303,12 @@ const seed = async () => {
         notes: 'Discussed missing values, joins, and data validation.',
         recordingUrl: 'https://example.com/recordings/pandas',
         courseId: courseIds[1],
+        batchId: batches[1]._id.toString(),
         instructorId: instructors[1]._id.toString(),
         meetUrl: 'https://meet.google.com/klm-nopq-rst',
         sessionDateAndTime: new Date('2025-07-10T14:00:00.000Z'),
         duration: '120 mins',
-        status: 'live',
+        status: 'In Progress',
         createdBy: adminUser._id.toString(),
       },
       {
@@ -305,6 +316,7 @@ const seed = async () => {
         notes: 'Explored React state and context APIs.',
         recordingUrl: 'https://example.com/recordings/react-state',
         courseId: courseIds[0],
+        batchId: batches[0]._id.toString(),
         instructorId: instructors[0]._id.toString(),
         meetUrl: 'https://meet.google.com/xyz-1234-abc',
         sessionDateAndTime: new Date('2025-03-08T16:00:00.000Z'),
@@ -540,6 +552,7 @@ const seed = async () => {
     await StudentLedger.insertMany([
       {
         studentId: students[0]._id.toString(),
+        batchId: batches[0]._id.toString(),
         sourceType: 'assignment',
         sourceId: submissions[0]._id.toString(),
         points: 20,
@@ -547,6 +560,7 @@ const seed = async () => {
       },
       {
         studentId: students[1]._id.toString(),
+        batchId: batches[0]._id.toString(),
         sourceType: 'quiz',
         sourceId: quizzes[0]._id.toString(),
         points: 6,
@@ -554,6 +568,7 @@ const seed = async () => {
       },
       {
         studentId: students[2]._id.toString(),
+        batchId: batches[1]._id.toString(),
         sourceType: 'attendance',
         sourceId: attendanceRecords[2]._id.toString(),
         points: 2,
