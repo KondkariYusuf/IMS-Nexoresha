@@ -1,0 +1,129 @@
+{
+  "info": {
+    "_postman_id": "7afa18cf-9e55-40cd-931e-dbcb75ba8ca5",
+    "name": "TAN_ATTENDANCE",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "55494293",
+    "_collection_link": "https://go.postman.co/collection/55494293-7afa18cf-9e55-40cd-931e-dbcb75ba8ca5?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "New Request",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"sessionId\": \"session-001\",\r\n  \"courseId\": \"course-001\",\r\n  \"attendance\": [\r\n    {\r\n      \"studentId\": \"student-001\",\r\n      \"first_half\": true,\r\n      \"second_half\": true\r\n    },\r\n    {\r\n      \"studentId\": \"student-002\",\r\n      \"first_half\": true,\r\n      \"second_half\": false\r\n    },\r\n    {\r\n      \"studentId\": \"student-003\",\r\n      \"first_half\": false,\r\n      \"second_half\": false\r\n    }\r\n  ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:4000/api/attendance",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "4000",
+          "path": [
+            "api",
+            "attendance"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "reupload",
+      "request": {
+        "method": "PUT",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"sessionId\": \"session-001\",\r\n  \"courseId\": \"course-001\",\r\n  \"attendance\": [\r\n    {\r\n      \"studentId\": \"student-001\",\r\n      \"first_half\": true,\r\n      \"second_half\": true\r\n    },\r\n    {\r\n      \"studentId\": \"student-002\",\r\n      \"first_half\": true,\r\n      \"second_half\": true\r\n    }\r\n  ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:4000/api/attendance/reupload",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "4000",
+          "path": [
+            "api",
+            "attendance",
+            "reupload"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "get by session",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:4000/api/attendance/session/session-001",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "4000",
+          "path": [
+            "api",
+            "attendance",
+            "session",
+            "session-001"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "New Request",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"sessionId\": \"session-001\",\r\n  \"courseId\": \"course-001\",\r\n  \"attendance\": [\r\n    {\r\n      \"studentId\": \"student-001\",\r\n      \"first_half\": true,\r\n      \"second_half\": true\r\n    },\r\n    {\r\n      \"studentId\": \"student-002\",\r\n      \"first_half\": false,\r\n      \"second_half\": true\r\n    }\r\n  ]\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:4000/api/attendance",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "4000",
+          "path": [
+            "api",
+            "attendance"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "just checking",
+      "request": {
+        "method": "GET",
+        "header": []
+      },
+      "response": []
+    }
+  ]
+}
