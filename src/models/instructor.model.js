@@ -4,7 +4,6 @@ import { schemaOptions, uuidId } from "./modelHelpers.js";
 const instructorSchema = new mongoose.Schema(
   {
     _id: uuidId,
-
     userId: {
       type: String,
       ref: "User",

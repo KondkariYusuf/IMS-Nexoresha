@@ -57,7 +57,10 @@ export function requireRole(allowedRoles) {
             return;
         }
 
-        if (!roles.includes(req.user.role)) {
+        const userRoleLower = req.user.role ? req.user.role.toLowerCase() : '';
+        const hasRole = roles.some(role => role && role.toLowerCase() === userRoleLower);
+
+        if (!hasRole) {
             next(new CustomError('Access denied', 403));
             return;
         }

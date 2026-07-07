@@ -30,11 +30,21 @@ const sessionSchema = new mongoose.Schema(
 
     status: {
       type: String,
-      enum: ['scheduled', 'live', 'completed', 'cancelled', 'postponed'],
+      enum: ['scheduled', 'In Progress', 'completed', 'cancelled', 'postponed'],
       default: 'scheduled',
     },
 
     createdBy: { type: String, ref: 'User' },
+    batchId: { type: String, ref: 'Batch', required: true },
+    topicIds: [{ type: String, ref: 'Topic' }],
+    actualStartTime: { type: Date, default: null },
+    startTime: { type: String, trim: true },
+    endTime: { type: String, trim: true },
+    half1EndTime: { type: String, trim: true },
+    assignmentTitle: { type: String, trim: true },
+    assignmentDescription: { type: String, trim: true },
+    assignmentDeadline: { type: Date, default: null },
+    githubRepoSeed: { type: String, trim: true },
   },
   schemaOptions,
 );

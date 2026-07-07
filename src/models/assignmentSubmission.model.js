@@ -12,6 +12,8 @@ const assignmentSubmissionSchema = new mongoose.Schema(
     remarks: { type: String, trim: true },
     submittedAt: { type: Date, default: null },
     onTimeSubmission: { type: Boolean, default: false },
+    reviewStatus: { type: String, enum: ['pending', 'completed', 'error'] },
+    ledgerEventId: { type: String, ref: 'StudentLedger' },
   },
   schemaOptions,
 );

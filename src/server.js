@@ -1,6 +1,8 @@
 import 'dotenv/config';
 import app from './app.js';
 import { connectDatabase } from '../config/database.js';
+import './workers/reminderWorker.js';
+import './workers/codeReviewWorker.js';
 
 import dns from 'dns';
 
