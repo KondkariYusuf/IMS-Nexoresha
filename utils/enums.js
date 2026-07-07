@@ -1,4 +1,4 @@
-module.exports = {
+const enums = {
   ROLES: { ADMIN: 'admin', TEACHER: 'teacher', STUDENT: 'student' },
   LECTURE_STATUS: { SCHEDULED: 'scheduled', IN_PROGRESS: 'in_progress', COMPLETED: 'completed', CANCELLED: 'cancelled' },
   ASSIGNMENT_STATUS: { UNPUBLISHED: 'unpublished', PUBLISHED: 'published', CLOSED: 'closed' },
@@ -9,3 +9,5 @@ module.exports = {
   AUDIT_TARGET: { STUDENT: 'student', LECTURE: 'lecture', BATCH: 'batch', SUBMISSION: 'submission' },
   NOTIFICATION_TYPE: { LECTURE_SCHEDULED: 'lecture_scheduled', LECTURE_REMINDER: 'lecture_reminder', ASSIGNMENT_PUBLISHED: 'assignment_published', DEADLINE_APPROACHING: 'deadline_approaching', REVIEW_COMPLETE: 'review_complete', MARKS_UPDATED: 'marks_updated', REVIEW_ERROR: 'review_error' },
 };
+
+export default enums;
