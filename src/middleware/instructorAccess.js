@@ -47,6 +47,19 @@ export const checkBatchAccess = (paramName = 'batchId', source = 'params') => as
     if (!batch) {
       return next(new CustomError('Batch not found', 404));
     }
+
+    // Direct check: Is the instructor registered directly under batch.teacherIds?
+    if (batch.teacherIds && batch.teacherIds.includes(instructorId)) {
+      return next();
+    }
+
+    // Direct check: Is there a course in this batch assigned to this instructor?
+    const hasAssignedCourse = await Course.exists({
+      batchId,
+      instructorIds: instructorId,
+    });
+    if (hasAssignedCourse) return next();
+
     const courses = await Course.find({ instructorIds: instructorId });
     const courseIds = courses.map((c) => c._id);
     
@@ -115,6 +128,20 @@ export const checkTopicAccess = (paramName = 'id', source = 'params') => async (
     }
     
     const instructorId = await getInstructorId(req.user.id);
+
+    // Direct check: Is the instructor registered directly under batch.teacherIds?
+    const batch = await Batch.findById(topic.batchId);
+    if (batch && batch.teacherIds && batch.teacherIds.includes(instructorId)) {
+      return next();
+    }
+
+    // Direct check: Is there a course in this batch assigned to this instructor?
+    const hasAssignedCourse = await Course.exists({
+      batchId: topic.batchId,
+      instructorIds: instructorId,
+    });
+    if (hasAssignedCourse) return next();
+
     const courses = await Course.find({ instructorIds: instructorId });
     const courseIds = courses.map((c) => c._id);
     
@@ -151,6 +178,20 @@ export const checkTopicReorderAccess = async (req, res, next) => {
     }
 
     const instructorId = await getInstructorId(req.user.id);
+
+    // Direct check: Is the instructor registered directly under batch.teacherIds?
+    const batch = await Batch.findById(firstTopic.batchId);
+    if (batch && batch.teacherIds && batch.teacherIds.includes(instructorId)) {
+      return next();
+    }
+
+    // Direct check: Is there a course in this batch assigned to this instructor?
+    const hasAssignedCourse = await Course.exists({
+      batchId: firstTopic.batchId,
+      instructorIds: instructorId,
+    });
+    if (hasAssignedCourse) return next();
+
     const courses = await Course.find({ instructorIds: instructorId });
     const courseIds = courses.map((c) => c._id);
     
