@@ -8,7 +8,9 @@ import {
   StudentLedger,
   StudentMetrics,
   User,
+  Role,
 } from '../models/index.js';
+import bcrypt from 'bcrypt';
 import { CustomError } from '../../utils/customError.js';
 import { generatePortfolioPDF } from './pdfService.js';
 import { queueReview } from './codeReviewService.js';
@@ -91,6 +93,8 @@ async function getAssignmentQueryForStudent(student) {
   return {};
 }
 
+import { randomUUID } from 'crypto';
+
 export async function createStudent(req) {
   const {
     enrollementNo,
@@ -116,7 +120,11 @@ export async function createStudent(req) {
     throw new CustomError(`Student with enrollment number ${enrollementNo} already exists`, 409);
   }
 
+  const generatedId = randomUUID();
+
   const student = await Student.create({
+    _id: generatedId,
+    userId: generatedId,
     enrollementNo,
     dob,
     batchId,
@@ -131,12 +139,24 @@ export async function createStudent(req) {
   });
 
   if (name && email && mobileNo && password) {
+    let studentRole = await Role.findOne({ name: 'Student' });
+    if (!studentRole) {
+      studentRole = await Role.create({
+        name: 'Student',
+        description: 'Student role',
+        permissionIds: [],
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     await User.create({
-      _id: student._id,
+      _id: generatedId,
       name,
       email,
       mobileNo,
-      password,
+      password: hashedPassword,
+      roleId: studentRole._id,
       profileStatus,
       tokenVersion: 0,
     });
