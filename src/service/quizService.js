@@ -89,7 +89,7 @@ export async function uploadLectureQuizResultsService({
             );
         }
 
-        inputMap.set(student._id.toString(), {
+        inputMap.set(student._id, {
             student,
             score: Number(row.score),
             feedback: row.feedback || '',
@@ -99,7 +99,7 @@ export async function uploadLectureQuizResultsService({
     const summary = [];
 
     for (const student of batchStudents) {
-        const uploaded = inputMap.get(student._id.toString());
+        const uploaded = inputMap.get(student._id);
 
         const score = uploaded ? uploaded.score : -2.5;
         const storedScore = uploaded ? uploaded.score : 0;

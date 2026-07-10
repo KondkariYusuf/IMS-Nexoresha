@@ -62,7 +62,7 @@ export async function markAttendance({ lectureId, teacherId, attendance }) {
       );
     }
 
-    inputMap.set(student._id.toString(), {
+    inputMap.set(student._id, {
       student,
       firstHalf: row.first_half,
       secondHalf: row.second_half,
@@ -72,7 +72,7 @@ export async function markAttendance({ lectureId, teacherId, attendance }) {
   const summary = [];
 
   for (const student of batchStudents) {
-    const uploaded = inputMap.get(student._id.toString());
+    const uploaded = inputMap.get(student._id);
 
     const firstHalf = uploaded ? uploaded.firstHalf : false;
     const secondHalf = uploaded ? uploaded.secondHalf : false;
