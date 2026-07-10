@@ -26,7 +26,9 @@ const router = Router();
 // Metrics are computed from the existing MongoDB collections at request time, so no persistence CRUD routes are exposed.
 router.get('/total-score/:studentId', getTotalScore);
 router.get('/batch-rank/:studentId/:batchId', getBatchRank);
+router.get('/batch-rank/:studentId', getBatchRank);
 router.get('/batch-percentile/:studentId/:batchId', getBatchPercentile);
+router.get('/batch-percentile/:studentId', getBatchPercentile);
 router.get('/assignment-average/:studentId', getAssignmentAvgScore);
 router.get('/quiz-average/:studentId', getQuizAvgScore);
 router.get('/quiz-participation/:studentId/:batchId', getQuizParticipationRate);
