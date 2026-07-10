@@ -13,6 +13,7 @@ import {
 } from '../models/index.js';
 import * as cacheService from './cacheService.js';
 import { CONSTANTS } from '../../utils/constant.js';
+import { CustomError } from '../../utils/customError.js';
 
 function toNumber(value) {
   const parsedValue = Number(value);
@@ -109,6 +110,47 @@ async function resolveBatchId(studentId, batchId) {
   return student?.batchId || null;
 }
 
+async function resolveBatch(batchId) {
+  if (!batchId) {
+    return null;
+  }
+
+  return Batch.findById(batchId).select('_id').lean();
+}
+
+async function validateStudentBatch(studentId, batchId) {
+  if (!studentId) {
+    throw new CustomError('Student not found', 404);
+  }
+
+  const student = await resolveStudent(studentId);
+  if (!student) {
+    throw new CustomError('Student not found', 404);
+  }
+
+  if (batchId) {
+    const batch = await resolveBatch(batchId);
+    if (!batch) {
+      throw new CustomError('Batch not found', 404);
+    }
+    if (student.batchId !== batchId) {
+      throw new CustomError('Student not found in batch', 404);
+    }
+    return student;
+  }
+
+  if (!student.batchId) {
+    throw new CustomError('Batch not found', 404);
+  }
+
+  const batch = await resolveBatch(student.batchId);
+  if (!batch) {
+    throw new CustomError('Batch not found', 404);
+  }
+
+  return student;
+}
+
 async function getLedgerSum(studentId) {
   if (!studentId) {
     return 0;
@@ -187,30 +229,19 @@ async function getBatchScoreSummary(batchId) {
 
 // Rank is derived from descending total score, and percentile is the share of students below the target student.
 async function getBatchRankAndPercentile(studentId, batchId) {
-  if (!studentId) {
-    return { rank: 0, percentile: 0 };
-  }
-
-  const resolvedStudent = await resolveStudent(studentId);
-  if (!resolvedStudent) {
-    return { rank: 0, percentile: 0 };
-  }
-
-  const resolvedBatchId = await resolveBatchId(studentId, batchId);
-  if (!resolvedBatchId) {
-    return { rank: 0, percentile: 0 };
-  }
+  const resolvedStudent = await validateStudentBatch(studentId, batchId);
+  const resolvedBatchId = batchId || resolvedStudent.batchId;
 
   const scoreSummary = await getBatchScoreSummary(resolvedBatchId);
   if (!scoreSummary.length) {
-    return { rank: 0, percentile: 0 };
+    throw new CustomError('No students found in batch', 404);
   }
 
   const sortedScores = [...scoreSummary].sort((left, right) => right.totalScore - left.totalScore);
   const targetEntry = sortedScores.find((entry) => entry.studentId === resolvedStudent._id);
 
   if (!targetEntry) {
-    return { rank: 0, percentile: 0 };
+    throw new CustomError('Student not found in batch', 404);
   }
 
   const belowCount = sortedScores.filter((entry) => entry.totalScore < targetEntry.totalScore).length;
@@ -286,12 +317,12 @@ async function getBatchAssignmentReviewScores(batchId) {
 
 async function getTotalScore(studentId) {
   if (!studentId) {
-    return 0;
+    throw new CustomError('Student not found', 404);
   }
 
   const student = await resolveStudent(studentId);
   if (!student) {
-    return 0;
+    throw new CustomError('Student not found', 404);
   }
 
   const batchConfig = await getBatchConfig(student.batchId);
@@ -313,6 +344,15 @@ async function getBatchPercentile(studentId, batchId) {
 }
 
 async function getAssignmentAvgScore(studentId) {
+  if (!studentId) {
+    throw new CustomError('Student not found', 404);
+  }
+
+  const student = await resolveStudent(studentId);
+  if (!student) {
+    throw new CustomError('Student not found', 404);
+  }
+
   const results = await getCompletedAssignmentResults(studentId);
   if (!results.length) {
     return 0;
@@ -324,12 +364,12 @@ async function getAssignmentAvgScore(studentId) {
 
 async function getQuizAvgScore(studentId) {
   if (!studentId) {
-    return 0;
+    throw new CustomError('Student not found', 404);
   }
 
   const student = await resolveStudent(studentId);
   if (!student) {
-    return 0;
+    throw new CustomError('Student not found', 404);
   }
 
   const quizResults = await QuizResult.find({ studentId: student._id }).select('marksObtained').lean();
@@ -343,19 +383,8 @@ async function getQuizAvgScore(studentId) {
 
 // Participation is measured from quiz result records because the current schema does not expose a separate missed-event flag.
 async function getQuizParticipationRate(studentId, batchId) {
-  if (!studentId) {
-    return 0;
-  }
-
-  const student = await resolveStudent(studentId);
-  if (!student) {
-    return 0;
-  }
-
-  const resolvedBatchId = await resolveBatchId(studentId, batchId);
-  if (!resolvedBatchId || student.batchId !== resolvedBatchId) {
-    return 0;
-  }
+  const student = await validateStudentBatch(studentId, batchId);
+  const resolvedBatchId = batchId || student.batchId;
 
   const batchSessionIds = await Session.find({ courseId: { $in: student.enrolledCourseIds }, status: { $ne: 'cancelled' } }).select('_id').lean();
   const quizIds = await Quiz.find({ sessionId: { $in: batchSessionIds.map((session) => session._id) } }).select('_id').lean();
@@ -371,19 +400,7 @@ async function getQuizParticipationRate(studentId, batchId) {
 }
 
 async function getAttendanceRate(studentId, batchId) {
-  if (!studentId) {
-    return 0;
-  }
-
-  const student = await resolveStudent(studentId);
-  if (!student) {
-    return 0;
-  }
-
-  const resolvedBatchId = await resolveBatchId(studentId, batchId);
-  if (!resolvedBatchId || student.batchId !== resolvedBatchId) {
-    return 0;
-  }
+  const student = await validateStudentBatch(studentId, batchId);
 
   const records = await getAttendanceRecords(student._id);
   if (!records.length) {
@@ -395,19 +412,7 @@ async function getAttendanceRate(studentId, batchId) {
 }
 
 async function getOnTimeSubmissionRate(studentId, batchId) {
-  if (!studentId) {
-    return 0;
-  }
-
-  const student = await resolveStudent(studentId);
-  if (!student) {
-    return 0;
-  }
-
-  const resolvedBatchId = await resolveBatchId(studentId, batchId);
-  if (!resolvedBatchId || student.batchId !== resolvedBatchId) {
-    return 0;
-  }
+  const student = await validateStudentBatch(studentId, batchId);
 
   const courseIds = student.enrolledCourseIds || [];
   const sessionIds = await Session.find({ courseId: { $in: courseIds } }).select('_id').lean();
@@ -428,19 +433,7 @@ async function getOnTimeSubmissionRate(studentId, batchId) {
 }
 
 async function getPunctualityIndex(studentId, batchId) {
-  if (!studentId) {
-    return 0;
-  }
-
-  const student = await resolveStudent(studentId);
-  if (!student) {
-    return 0;
-  }
-
-  const resolvedBatchId = await resolveBatchId(studentId, batchId);
-  if (resolvedBatchId && student.batchId !== resolvedBatchId) {
-    return 0;
-  }
+  const student = await validateStudentBatch(studentId, batchId);
 
   const records = await getAttendanceRecords(student._id);
   if (!records.length) {
@@ -451,15 +444,14 @@ async function getPunctualityIndex(studentId, batchId) {
   return average(punctualityScores) * 100;
 }
 
-// Lead time is the positive number of hours between a submission and the assignment deadline for on-time submissions.
 async function getSubmissionLeadTime(studentId) {
   if (!studentId) {
-    return 0;
+    throw new CustomError('Student not found', 404);
   }
 
   const student = await resolveStudent(studentId);
   if (!student) {
-    return 0;
+    throw new CustomError('Student not found', 404);
   }
 
   const submissions = await AssignmentSubmission.find({
@@ -475,7 +467,7 @@ async function getSubmissionLeadTime(studentId) {
   }
 
   const assignmentIds = [...new Set(submissions.map((submission) => submission.assignmentId))];
-  const assignments = await Assignment.find({ _id: { $in: assignmentIds } }).select('_id submissionDeadline').lean();
+    const assignments = await Assignment.find({ _id: { $in: assignmentIds } }).select('_id submissionDeadline').lean();
   const deadlineMap = new Map(assignments.map((assignment) => [assignment._id, assignment.submissionDeadline]));
 
   const leadTimes = submissions
@@ -500,19 +492,7 @@ async function getSubmissionLeadTime(studentId) {
 }
 
 async function getZeroMissStreaks(studentId, batchId) {
-  if (!studentId) {
-    return 0;
-  }
-
-  const student = await resolveStudent(studentId);
-  if (!student) {
-    return 0;
-  }
-
-  const resolvedBatchId = await resolveBatchId(studentId, batchId);
-  if (resolvedBatchId && student.batchId !== resolvedBatchId) {
-    return 0;
-  }
+  const student = await validateStudentBatch(studentId, batchId);
 
   const records = await getAttendanceRecords(student._id);
   let longestStreak = 0;
@@ -536,12 +516,12 @@ async function getCodeQualityAvg(studentId) {
 
 async function getCodeImprovementRate(studentId) {
   if (!studentId) {
-    return 0;
+    throw new CustomError('Student not found', 404);
   }
 
   const student = await resolveStudent(studentId);
   if (!student) {
-    return 0;
+    throw new CustomError('Student not found', 404);
   }
 
   const submissions = await AssignmentSubmission.find({ studentId: student._id, submittedAt: { $ne: null } })
@@ -571,19 +551,22 @@ async function getCodeImprovementRate(studentId) {
 }
 
 async function getPerfectAssignmentCount(studentId) {
+  if (!studentId) {
+    throw new CustomError('Student not found', 404);
+  }
+
+  const student = await resolveStudent(studentId);
+  if (!student) {
+    throw new CustomError('Student not found', 404);
+  }
+
   const results = await getCompletedAssignmentResults(studentId);
   return results.filter((result) => toNumber(result.codeQualityScore) === 10).length;
 }
 
 async function getBelowAvgAssignmentRate(studentId, batchId) {
-  if (!studentId) {
-    return 0;
-  }
-
-  const resolvedBatchId = await resolveBatchId(studentId, batchId);
-  if (!resolvedBatchId) {
-    return 0;
-  }
+  const student = await validateStudentBatch(studentId, batchId);
+  const resolvedBatchId = batchId || student.batchId;
 
   const [studentResults, batchResults] = await Promise.all([
     getCompletedAssignmentResults(studentId),
@@ -609,10 +592,15 @@ async function getBelowAvgAssignmentRate(studentId, batchId) {
 // Consistency is penalized by the spread of lecture-level attendance scores and clamped to the 0-100 range.
 async function getConsistencyScore(studentId) {
   if (!studentId) {
-    return 0;
+    throw new CustomError('Student not found', 404);
   }
 
-  const records = await getAttendanceRecords(studentId);
+  const student = await resolveStudent(studentId);
+  if (!student) {
+    throw new CustomError('Student not found', 404);
+  }
+
+  const records = await getAttendanceRecords(student._id);
   if (!records.length) {
     return 0;
   }
@@ -622,19 +610,7 @@ async function getConsistencyScore(studentId) {
 }
 
 async function getGrowthRate(studentId, batchId) {
-  if (!studentId) {
-    return 0;
-  }
-
-  const student = await resolveStudent(studentId);
-  if (!student) {
-    return 0;
-  }
-
-  const resolvedBatchId = await resolveBatchId(studentId, batchId);
-  if (resolvedBatchId && student.batchId !== resolvedBatchId) {
-    return 0;
-  }
+  const student = await validateStudentBatch(studentId, batchId);
 
   const records = await getAttendanceRecords(student._id);
   if (records.length < 2) {
@@ -650,6 +626,8 @@ async function getGrowthRate(studentId, batchId) {
 }
 
 async function getEngagementScore(studentId, batchId) {
+  await validateStudentBatch(studentId, batchId);
+
   const [quizParticipationRate, onTimeSubmissionRate, attendanceRate] = await Promise.all([
     getQuizParticipationRate(studentId, batchId),
     getOnTimeSubmissionRate(studentId, batchId),
@@ -660,21 +638,10 @@ async function getEngagementScore(studentId, batchId) {
 }
 
 async function getAllMetrics(studentId, batchId) {
-  if (!studentId) {
-    return {};
-  }
+  const student = await validateStudentBatch(studentId, batchId);
+  const resolvedBatchId = batchId || student.batchId;
 
-  const resolvedBatchId = await resolveBatchId(studentId, batchId);
-  if (!resolvedBatchId) {
-    return {};
-  }
-
-  const resolvedStudent = await resolveStudent(studentId);
-  if (!resolvedStudent) {
-    return {};
-  }
-
-  const cachedMetrics = await cacheService.getStudentMetricsCache(resolvedBatchId, resolvedStudent._id);
+  const cachedMetrics = await cacheService.getStudentMetricsCache(resolvedBatchId, student._id);
   if (cachedMetrics) {
     return cachedMetrics;
   }
@@ -740,7 +707,7 @@ async function getAllMetrics(studentId, batchId) {
     engagementScore,
   };
 
-  await cacheService.setStudentMetricsCache(resolvedBatchId, resolvedStudent._id, metrics);
+  await cacheService.setStudentMetricsCache(resolvedBatchId, student._id, metrics);
   return metrics;
 }
 
