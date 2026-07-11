@@ -84,6 +84,18 @@ export async function createNotification(userId, type, message, meta = {}) {
   }
 
   try {
+    if (type === 'lecture_started' && meta?.sessionId) {
+      const exists = await Notification.findOne({
+        userId,
+        type: 'lecture_started',
+        'meta.sessionId': meta.sessionId
+      });
+      if (exists) {
+        console.log(`[NotificationService] Duplicate lecture_started notification ignored for userId: ${userId}, sessionId: ${meta.sessionId}`);
+        return exists;
+      }
+    }
+
     const finalMeta = { ...meta };
     const linkInfo = await resolveNotificationLink(type, finalMeta);
     if (linkInfo) {
@@ -241,6 +253,17 @@ export async function notifyBatch(batchId, type, message, meta = {}) {
   }
 
   try {
+    if (type === 'lecture_started' && meta?.sessionId) {
+      const exists = await Notification.findOne({
+        type: 'lecture_started',
+        'meta.sessionId': meta.sessionId
+      });
+      if (exists) {
+        console.log(`[NotificationService] Duplicate lecture_started notification ignored for sessionId: ${meta.sessionId}`);
+        return { success: true, count: 0 };
+      }
+    }
+
     const finalMeta = { ...meta };
     const linkInfo = await resolveNotificationLink(type, finalMeta);
     if (linkInfo) {

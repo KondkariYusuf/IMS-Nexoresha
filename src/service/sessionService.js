@@ -1,4 +1,4 @@
-import { Session, Assignment, Batch, Course, Topic, Instructor } from '../models/index.js';
+import { Session, Assignment, Batch, Course, Topic, Instructor, Notification } from '../models/index.js';
 import { CustomError } from '../../utils/customError.js';
 import * as notificationService from './notificationService.js';
 
@@ -271,6 +271,26 @@ export async function transitionSessionStatus(sessionId, nextStatus) {
 
   session.status = nextStatus;
   await session.save();
+
+  if (nextStatus === 'In Progress') {
+    const alreadyNotified = await Notification.findOne({
+      type: 'lecture_started',
+      'meta.sessionId': session._id
+    });
+    if (!alreadyNotified) {
+      try {
+        await notificationService.notifyBatch(
+          session.batchId,
+          'lecture_started',
+          `The session "${session.title}" has started.`,
+          { sessionId: session._id }
+        );
+      } catch (err) {
+        console.error('[SessionService] Error triggering lecture_started notification:', err.message);
+      }
+    }
+  }
+
   return session;
 }
 
