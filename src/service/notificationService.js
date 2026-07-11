@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { User, Role, Student, Notification, Session } from '../models/index.js';
+import { User, Role, Student, Notification, Session, Assignment, Quiz } from '../models/index.js';
 import { reminderQueue } from '../queues/reminderQueue.js';
 
 let transporter = null;
@@ -26,6 +26,56 @@ function getTransporter() {
 }
 
 /**
+ * Helper to dynamically resolve meeting and target links for sessions, assignments, and quizzes.
+ */
+async function resolveNotificationLink(type, meta) {
+  try {
+    const typeLower = type ? type.toLowerCase() : '';
+    
+    // 1. Session / Lecture
+    if (meta?.sessionId || typeLower.startsWith('session_') || typeLower.startsWith('lecture_')) {
+      const sessionId = meta?.sessionId;
+      if (sessionId) {
+        const session = await Session.findById(sessionId);
+        if (session && session.meetUrl) {
+          return {
+            link: '/student/lectures',
+            meetingUrl: session.meetUrl,
+            label: 'Join Meeting'
+          };
+        }
+      }
+      return {
+        link: '/student/lectures',
+        meetingUrl: null,
+        label: 'View Lectures'
+      };
+    }
+    
+    // 2. Assignment
+    if (meta?.assignmentId || typeLower.startsWith('assignment_')) {
+      return {
+        link: '/student/assignments',
+        meetingUrl: null,
+        label: 'View Assignment'
+      };
+    }
+    
+    // 3. Quiz
+    if (meta?.quizId || typeLower.startsWith('quiz_') || typeLower === 'quiz') {
+      return {
+        link: '/student/quiz',
+        meetingUrl: null,
+        label: 'Take Quiz'
+      };
+    }
+  } catch (error) {
+    console.error('[NotificationService] Error resolving notification link:', error);
+  }
+  return null;
+}
+
+/**
  * Saves a notification to the database for a specific user.
  */
 export async function createNotification(userId, type, message, meta = {}) {
@@ -34,11 +84,18 @@ export async function createNotification(userId, type, message, meta = {}) {
   }
 
   try {
+    const finalMeta = { ...meta };
+    const linkInfo = await resolveNotificationLink(type, finalMeta);
+    if (linkInfo) {
+      if (linkInfo.link) finalMeta.link = linkInfo.link;
+      if (linkInfo.meetingUrl) finalMeta.meetingUrl = linkInfo.meetingUrl;
+    }
+
     const notification = new Notification({
       userId,
       type,
       message,
-      meta,
+      meta: finalMeta,
     });
     await notification.save();
     return notification;
@@ -137,10 +194,18 @@ function buildEmailTemplate(title, message) {
   `;
 }
 
+let sendEmailMock = null;
+export function setSendEmailMock(fn) {
+  sendEmailMock = fn;
+}
+
 /**
  * Sends a transactional email using the SMTP provider configured in .env.
  */
 export async function sendEmail(to, subject, html) {
+  if (sendEmailMock) {
+    return sendEmailMock(to, subject, html);
+  }
   if (!to || !subject || !html) {
     return { success: false, error: 'Missing recipient, subject, or HTML body.' };
   }
@@ -176,6 +241,13 @@ export async function notifyBatch(batchId, type, message, meta = {}) {
   }
 
   try {
+    const finalMeta = { ...meta };
+    const linkInfo = await resolveNotificationLink(type, finalMeta);
+    if (linkInfo) {
+      if (linkInfo.link) finalMeta.link = linkInfo.link;
+      if (linkInfo.meetingUrl) finalMeta.meetingUrl = linkInfo.meetingUrl;
+    }
+
     // 1. Fetch students of this batch and populate User detail
     const students = await Student.find({ batchId }).populate('userId');
     
@@ -194,17 +266,25 @@ export async function notifyBatch(batchId, type, message, meta = {}) {
       userId: student.userId._id,
       type,
       message,
-      meta,
+      meta: finalMeta,
     }));
     await Notification.insertMany(notificationsToInsert);
 
     // 3. Send email notifications asynchronously
     const emailPromises = activeStudents.map((student) => {
       if (student.userId.email) {
+        let emailHtml = `<p>${message.replace(/\n/g, '<br/>')}</p>`;
+        if (linkInfo) {
+          const clientUrl = process.env.CLIENT_URL || 'http://localhost:5174';
+          const finalUrl = linkInfo.meetingUrl && linkInfo.meetingUrl.startsWith('http')
+            ? linkInfo.meetingUrl
+            : `${clientUrl}${linkInfo.link}`;
+          emailHtml += `<p><a href="${finalUrl}" style="display: inline-block; padding: 10px 20px; background-color: #4f46e5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; margin-top: 15px;">${linkInfo.label}</a></p>`;
+        }
         return sendEmail(
           student.userId.email,
           `[IMS] Notification: ${type.replace(/_/g, ' ').toUpperCase()}`,
-          `<p>${message}</p>`
+          emailHtml
         );
       }
       return Promise.resolve(null);
@@ -286,7 +366,7 @@ export async function scheduleReminder(sessionId, fireAt, type) {
     throw new Error('Validation Error: sessionId is required.');
   }
 
-  const validTypes = ['lecture_reminder_24h', 'lecture_reminder_1h', 'assignment_deadline_24h'];
+  const validTypes = ['lecture_reminder_24h', 'lecture_reminder_1h', 'assignment_deadline_24h', 'session_start_auto'];
   if (!type || !validTypes.includes(type)) {
     throw new Error(`Validation Error: Invalid reminder type "${type}". Must be one of ${validTypes.join(', ')}.`);
   }

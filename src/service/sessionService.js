@@ -20,6 +20,42 @@ function parseDurationToMs(durationStr) {
   return 0;
 }
 
+async function scheduleSessionJobs(session) {
+  if (session.sessionDateAndTime) {
+    const now = new Date();
+    
+    // 1. Schedule auto transition to In Progress at session start time
+    const fireStart = new Date(session.sessionDateAndTime);
+    if (fireStart > now) {
+      try {
+        await notificationService.scheduleReminder(session._id, fireStart, 'session_start_auto');
+      } catch (err) {
+        console.error('[SessionService] Failed to schedule session start auto transition:', err.message);
+      }
+    }
+
+    // 2. Schedule 24h reminder
+    const fire24h = new Date(session.sessionDateAndTime.getTime() - 24 * 60 * 60 * 1000);
+    if (fire24h > now) {
+      try {
+        await notificationService.scheduleReminder(session._id, fire24h, 'lecture_reminder_24h');
+      } catch (err) {
+        console.error('[SessionService] Failed to schedule 24h reminder:', err.message);
+      }
+    }
+
+    // 3. Schedule 1h reminder
+    const fire1h = new Date(session.sessionDateAndTime.getTime() - 60 * 60 * 1000);
+    if (fire1h > now) {
+      try {
+        await notificationService.scheduleReminder(session._id, fire1h, 'lecture_reminder_1h');
+      } catch (err) {
+        console.error('[SessionService] Failed to schedule 1h reminder:', err.message);
+      }
+    }
+  }
+}
+
 /**
  * Create and schedule a new session.
  */
@@ -89,26 +125,7 @@ export async function createSession(sessionData, creatorId) {
 
   await session.save();
 
-  // Automatically schedule 24-hour and 1-hour reminders if the session is set in the future
-  if (session.sessionDateAndTime) {
-    const fire24h = new Date(session.sessionDateAndTime.getTime() - 24 * 60 * 60 * 1000);
-    if (fire24h > new Date()) {
-      try {
-        await notificationService.scheduleReminder(session._id, fire24h, 'lecture_reminder_24h');
-      } catch (err) {
-        console.error('[SessionService] Failed to schedule 24h reminder:', err.message);
-      }
-    }
-
-    const fire1h = new Date(session.sessionDateAndTime.getTime() - 60 * 60 * 1000);
-    if (fire1h > new Date()) {
-      try {
-        await notificationService.scheduleReminder(session._id, fire1h, 'lecture_reminder_1h');
-      } catch (err) {
-        console.error('[SessionService] Failed to schedule 1h reminder:', err.message);
-      }
-    }
-  }
+  await scheduleSessionJobs(session);
 
   return session;
 }
@@ -155,8 +172,16 @@ export async function updateSession(sessionId, updateData) {
     }
   }
 
+  const oldTime = session.sessionDateAndTime ? new Date(session.sessionDateAndTime).getTime() : null;
   Object.assign(session, updateData);
   await session.save();
+
+  if (updateData.sessionDateAndTime) {
+    const newTime = new Date(updateData.sessionDateAndTime).getTime();
+    if (newTime !== oldTime) {
+      await scheduleSessionJobs(session);
+    }
+  }
   return session;
 }
 
@@ -186,6 +211,9 @@ export async function transitionSessionStatus(sessionId, nextStatus) {
 
   // Side effects
   if (nextStatus === 'In Progress') {
+    if (session.sessionDateAndTime && Date.now() < new Date(session.sessionDateAndTime).getTime()) {
+      throw new CustomError('Session cannot be started before its scheduled start time.', 400);
+    }
     session.actualStartTime = new Date();
   } else if (nextStatus === 'completed') {
     if (!session.sessionDateAndTime) {

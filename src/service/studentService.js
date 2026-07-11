@@ -593,8 +593,13 @@ export async function getStudentNotifications(req) {
     Notification.countDocuments({ userId: studentId }),
   ]);
 
+  const mappedNotifications = notifications.map((notif) => ({
+    ...notif,
+    link: notif.meta?.link || null,
+  }));
+
   return {
-    notifications,
+    notifications: mappedNotifications,
     total,
     page,
     limit,
