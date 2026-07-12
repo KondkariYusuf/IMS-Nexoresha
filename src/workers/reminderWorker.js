@@ -21,6 +21,23 @@ reminderQueue.process(async (job) => {
       return;
     }
 
+    if (type === 'session_start_auto') {
+      if (session.status !== 'scheduled') {
+        console.log(`[ReminderWorker] Auto transition skipped: Session "${sessionId}" status is "${session.status}" (expected "scheduled").`);
+        return;
+      }
+      const scheduledTime = new Date(session.sessionDateAndTime).getTime();
+      if (Date.now() + 5000 < scheduledTime) {
+        console.warn(`[ReminderWorker] Job ${job.id} skipped: Scheduled start time (${session.sessionDateAndTime}) has not been reached yet.`);
+        return;
+      }
+      console.log(`[ReminderWorker] Automatically transitioning session "${session.title}" (${sessionId}) to "In Progress"...`);
+      const { transitionSessionStatus } = await import('../service/sessionService.js');
+      await transitionSessionStatus(sessionId, 'In Progress');
+      console.log(`[ReminderWorker] Job ${job.id} completed successfully. Session transitioned.`);
+      return;
+    }
+
     // 2. Check Session Status (Skip if completed or cancelled)
     if (session.status === 'completed' || session.status === 'cancelled') {
       console.log(`[ReminderWorker] Job ${job.id} skipped: Session status is "${session.status}".`);

@@ -19,7 +19,7 @@ router.use(verifyToken);
 router.put('/courses/:id', requireRole('admin'), instructorController.updateCourse);
 router.delete('/courses/:id', requireRole('admin'), instructorController.deleteCourse);
 
-router.use(requireRole('instructor'));
+router.use(requireRole(['instructor', 'teacher']));
 
 // Course CRUD endpoints
 router.post(
