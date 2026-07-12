@@ -6,6 +6,7 @@ const courseSchema = new mongoose.Schema(
     _id: uuidId,
     name: { type: String, required: true, trim: true },
     instructorIds: [{ type: String, ref: 'Instructor' }],
+    batchId: { type: String, ref: 'Batch', required: true },
   },
   schemaOptions,
 );
