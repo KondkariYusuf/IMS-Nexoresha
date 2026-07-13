@@ -32,7 +32,7 @@ Table permission{
   tokenVersion Number [not null]
   passwordChangedAt timestamp
   createdAt timestamp
-  updatedAt timestamp
+  updatedAt timestamp 
   deletedAt timestamp
  }
 
