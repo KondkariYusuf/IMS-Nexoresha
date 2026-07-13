@@ -8,4 +8,5 @@ export const uuidId = {
 export const schemaOptions = {
   versionKey: false,
   id: false,
+  suppressReservedKeysWarning: true,
 };
